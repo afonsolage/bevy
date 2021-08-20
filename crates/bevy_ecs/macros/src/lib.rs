@@ -189,7 +189,7 @@ pub fn impl_query_set(_input: TokenStream) -> TokenStream {
         let fn_name = Ident::new(&format!("q{}", i), Span::call_site());
         let index = Index::from(i);
         query_fn_muts.push(quote! {
-            pub fn #fn_name(&mut self) -> Query<'_, '_, #query, #filter> {
+            pub fn #fn_name(&self) -> Query<'_, '_, #query, #filter> {
                 // SAFE: systems run without conflicts with other systems.
                 // Conflicting queries in QuerySet are not accessible at the same time
                 // QuerySets are guaranteed to not conflict with other SystemParams
