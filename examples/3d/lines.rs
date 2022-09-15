@@ -62,7 +62,7 @@ fn setup(
     });
 }
 
-#[derive(Default, AsBindGroup, TypeUuid, Debug, Clone)]
+#[derive(Default, AsBindGroup, TypeUuid, TypePath, Debug, Clone)]
 #[uuid = "050ce6ac-080a-4d8c-b6b5-b5bab7560d8f"]
 struct LineMaterial {
     #[uniform(0)]

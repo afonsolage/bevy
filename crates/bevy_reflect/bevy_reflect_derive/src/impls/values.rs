@@ -1,4 +1,4 @@
-use crate::impls::impl_typed;
+use crate::impls::{impl_type_path, impl_typed};
 use crate::ReflectMeta;
 use proc_macro::TokenStream;
 use quote::quote;
@@ -22,6 +22,8 @@ pub(crate) fn impl_value(meta: &ReflectMeta) -> TokenStream {
         bevy_reflect_path,
     );
 
+    let type_path_impl = impl_type_path(meta);
+
     let (impl_generics, ty_generics, where_clause) = meta.generics().split_for_impl();
     let get_type_registration_impl = meta.get_type_registration();
 
@@ -30,10 +32,12 @@ pub(crate) fn impl_value(meta: &ReflectMeta) -> TokenStream {
 
         #typed_impl
 
+        #type_path_impl
+
         impl #impl_generics #bevy_reflect_path::Reflect for #type_name #ty_generics #where_clause  {
             #[inline]
-            fn type_name(&self) -> &str {
-                std::any::type_name::<Self>()
+            fn type_path(&self) -> &str {
+                <Self as #bevy_reflect_path::TypePath>::type_path()
             }
 
             #[inline]
@@ -77,7 +81,7 @@ pub(crate) fn impl_value(meta: &ReflectMeta) -> TokenStream {
                 if let Some(value) = value.downcast_ref::<Self>() {
                     *self = std::clone::Clone::clone(value);
                 } else {
-                    panic!("Value is not {}.", std::any::type_name::<Self>());
+                    panic!("Value is not {}.", self.type_path());
                 }
             }
 

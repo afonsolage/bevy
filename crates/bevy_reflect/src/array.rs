@@ -1,5 +1,6 @@
 use crate::{
-    utility::NonGenericTypeInfoCell, DynamicInfo, Reflect, ReflectMut, ReflectRef, TypeInfo, Typed,
+    self as bevy_reflect, utility::NonGenericTypeInfoCell, DynamicInfo, Reflect, ReflectMut,
+    ReflectRef, TypeInfo, TypePath, Typed,
 };
 use std::{
     any::{Any, TypeId},
@@ -35,7 +36,7 @@ pub trait Array: Reflect {
 
     fn clone_dynamic(&self) -> DynamicArray {
         DynamicArray {
-            name: self.type_name().to_string(),
+            name: self.type_path().to_string(),
             values: self.iter().map(|value| value.clone_value()).collect(),
         }
     }
@@ -44,9 +45,9 @@ pub trait Array: Reflect {
 /// A container for compile-time array info.
 #[derive(Clone, Debug)]
 pub struct ArrayInfo {
-    type_name: &'static str,
+    type_path: &'static str,
     type_id: TypeId,
-    item_type_name: &'static str,
+    item_type_path: &'static str,
     item_type_id: TypeId,
     capacity: usize,
 }
@@ -58,11 +59,11 @@ impl ArrayInfo {
     ///
     /// * `capacity`: The maximum capacity of the underlying array.
     ///
-    pub fn new<TArray: Array, TItem: Reflect>(capacity: usize) -> Self {
+    pub fn new<TArray: Array + TypePath, TItem: Reflect + TypePath>(capacity: usize) -> Self {
         Self {
-            type_name: std::any::type_name::<TArray>(),
+            type_path: <TArray as TypePath>::type_path(),
             type_id: TypeId::of::<TArray>(),
-            item_type_name: std::any::type_name::<TItem>(),
+            item_type_path: <TItem as TypePath>::type_path(),
             item_type_id: TypeId::of::<TItem>(),
             capacity,
         }
@@ -73,11 +74,11 @@ impl ArrayInfo {
         self.capacity
     }
 
-    /// The [type name] of the array.
+    /// The [type path] of the array.
     ///
-    /// [type name]: std::any::type_name
-    pub fn type_name(&self) -> &'static str {
-        self.type_name
+    /// [type path]: TypePath
+    pub fn type_path(&self) -> &'static str {
+        self.type_path
     }
 
     /// The [`TypeId`] of the array.
@@ -90,11 +91,11 @@ impl ArrayInfo {
         TypeId::of::<T>() == self.type_id
     }
 
-    /// The [type name] of the array item.
+    /// The [type path] of the array item.
     ///
-    /// [type name]: std::any::type_name
-    pub fn item_type_name(&self) -> &'static str {
-        self.item_type_name
+    /// [type path]: TypePath
+    pub fn item_type_path(&self) -> &'static str {
+        self.item_type_path
     }
 
     /// The [`TypeId`] of the array item.
@@ -117,6 +118,7 @@ impl ArrayInfo {
 /// can be mutated— just that the _number_ of items cannot change.
 ///
 /// [`DynamicList`]: crate::DynamicList
+#[derive(TypePath)]
 pub struct DynamicArray {
     pub(crate) name: String,
     pub(crate) values: Box<[Box<dyn Reflect>]>,
@@ -155,8 +157,8 @@ impl DynamicArray {
 
 impl Reflect for DynamicArray {
     #[inline]
-    fn type_name(&self) -> &str {
-        self.name.as_str()
+    fn type_path(&self) -> &str {
+        &self.name
     }
 
     #[inline]

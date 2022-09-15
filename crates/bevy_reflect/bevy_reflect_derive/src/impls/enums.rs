@@ -1,6 +1,6 @@
 use crate::derive_data::{EnumVariantFields, ReflectEnum, StructField};
 use crate::enum_utility::{get_variant_constructors, EnumVariantConstructors};
-use crate::impls::impl_typed;
+use crate::impls::{impl_type_path, impl_typed};
 use proc_macro::TokenStream;
 use proc_macro2::{Ident, Span};
 use quote::quote;
@@ -64,6 +64,8 @@ pub(crate) fn impl_enum(reflect_enum: &ReflectEnum) -> TokenStream {
         bevy_reflect_path,
     );
 
+    let type_path_impl = impl_type_path(reflect_enum.meta());
+
     let get_type_registration_impl = reflect_enum.meta().get_type_registration();
     let (impl_generics, ty_generics, where_clause) =
         reflect_enum.meta().generics().split_for_impl();
@@ -72,6 +74,8 @@ pub(crate) fn impl_enum(reflect_enum: &ReflectEnum) -> TokenStream {
         #get_type_registration_impl
 
         #typed_impl
+
+        #type_path_impl
 
         impl #impl_generics #bevy_reflect_path::Enum for #enum_name #ty_generics #where_clause {
             fn field(&self, #ref_name: &str) -> Option<&dyn #bevy_reflect_path::Reflect> {
@@ -151,8 +155,8 @@ pub(crate) fn impl_enum(reflect_enum: &ReflectEnum) -> TokenStream {
 
         impl #impl_generics #bevy_reflect_path::Reflect for #enum_name #ty_generics #where_clause {
             #[inline]
-            fn type_name(&self) -> &str {
-                std::any::type_name::<Self>()
+            fn type_path(&self) -> &str {
+                <Self as #bevy_reflect_path::TypePath>::type_path()
             }
 
             #[inline]
@@ -221,11 +225,11 @@ pub(crate) fn impl_enum(reflect_enum: &ReflectEnum) -> TokenStream {
                             #(#variant_names => {
                                 *self = #variant_constructors
                             })*
-                            name => panic!("variant with name `{}` does not exist on enum `{}`", name, std::any::type_name::<Self>()),
+                            name => panic!("variant with name `{}` does not exist on enum `{}`", name, self.type_path()),
                         }
                     }
                 } else {
-                    panic!("`{}` is not an enum", #ref_value.type_name());
+                    panic!("`{}` is not an enum", #ref_value.type_path());
                 }
             }
 

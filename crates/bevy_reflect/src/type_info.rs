@@ -1,5 +1,6 @@
 use crate::{
-    ArrayInfo, EnumInfo, ListInfo, MapInfo, Reflect, StructInfo, TupleInfo, TupleStructInfo,
+    type_path, ArrayInfo, EnumInfo, ListInfo, MapInfo, Reflect, StructInfo, TupleInfo,
+    TupleStructInfo, TypePath,
 };
 use std::any::{Any, TypeId};
 
@@ -23,7 +24,7 @@ use std::any::{Any, TypeId};
 ///
 /// ```
 /// # use std::any::Any;
-/// # use bevy_reflect::{NamedField, Reflect, ReflectMut, ReflectRef, StructInfo, TypeInfo, ValueInfo};
+/// # use bevy_reflect::{NamedField, Reflect, ReflectMut, ReflectRef, StructInfo, TypeInfo, TypePath, ValueInfo};
 /// # use bevy_reflect::utility::NonGenericTypeInfoCell;
 /// use bevy_reflect::Typed;
 ///
@@ -46,9 +47,16 @@ use std::any::{Any, TypeId};
 ///   }
 /// }
 ///
+/// # impl TypePath for MyStruct {
+/// #   fn type_path() -> &'static str { todo!() }
+/// #   fn short_type_name_base() -> &'static str { todo!() }
+/// #   fn short_type_name() -> &'static str { todo!() }
+/// #   fn module_path() -> &'static str { todo!() }
+/// #   fn crate_name() -> &'static str { todo!() }
+/// # }
 /// #
 /// # impl Reflect for MyStruct {
-/// #   fn type_name(&self) -> &str { todo!() }
+/// #   fn type_path(&self) -> &str { todo!() }
 /// #   fn get_type_info(&self) -> &'static TypeInfo { todo!() }
 /// #   fn into_any(self: Box<Self>) -> Box<dyn Any> { todo!() }
 /// #   fn as_any(&self) -> &dyn Any { todo!() }
@@ -82,7 +90,7 @@ pub trait Typed: Reflect {
 /// Each return a static reference to [`TypeInfo`], but they all have their own use cases.
 /// For example, if you know the type at compile time, [`Typed::type_info`] is probably
 /// the simplest. If all you have is a `dyn Reflect`, you'll probably want [`Reflect::get_type_info`].
-/// Lastly, if all you have is a [`TypeId`] or [type name], you will need to go through
+/// Lastly, if all you have is a [`TypeId`] or [type path], you will need to go through
 /// [`TypeRegistry::get_type_info`].
 ///
 /// You may also opt to use [`TypeRegistry::get_type_info`] in place of the other methods simply because
@@ -92,7 +100,7 @@ pub trait Typed: Reflect {
 /// [`Reflect::get_type_info`]: crate::Reflect::get_type_info
 /// [`TypeRegistry::get_type_info`]: crate::TypeRegistry::get_type_info
 /// [`TypeId`]: std::any::TypeId
-/// [type name]: std::any::type_name
+/// [type path]: crate::TypePath
 #[derive(Debug, Clone)]
 pub enum TypeInfo {
     Struct(StructInfo),
@@ -127,18 +135,18 @@ impl TypeInfo {
 
     /// The [name] of the underlying type.
     ///
-    /// [name]: std::any::type_name
-    pub fn type_name(&self) -> &'static str {
+    /// [name]: crate::TypePath
+    pub fn type_path(&self) -> &'static str {
         match self {
-            Self::Struct(info) => info.type_name(),
-            Self::TupleStruct(info) => info.type_name(),
-            Self::Tuple(info) => info.type_name(),
-            Self::List(info) => info.type_name(),
-            Self::Array(info) => info.type_name(),
-            Self::Map(info) => info.type_name(),
-            Self::Enum(info) => info.type_name(),
-            Self::Value(info) => info.type_name(),
-            Self::Dynamic(info) => info.type_name(),
+            Self::Struct(info) => info.type_path(),
+            Self::TupleStruct(info) => info.type_path(),
+            Self::Tuple(info) => info.type_path(),
+            Self::List(info) => info.type_path(),
+            Self::Array(info) => info.type_path(),
+            Self::Map(info) => info.type_path(),
+            Self::Enum(info) => info.type_path(),
+            Self::Value(info) => info.type_path(),
+            Self::Dynamic(info) => info.type_path(),
         }
     }
 
@@ -158,23 +166,23 @@ impl TypeInfo {
 /// it _as_ a struct. It therefore makes more sense to represent it as a [`ValueInfo`].
 #[derive(Debug, Clone)]
 pub struct ValueInfo {
-    type_name: &'static str,
+    type_path: &'static str,
     type_id: TypeId,
 }
 
 impl ValueInfo {
-    pub fn new<T: Reflect + ?Sized>() -> Self {
+    pub fn new<T: Reflect + TypePath + ?Sized>() -> Self {
         Self {
-            type_name: std::any::type_name::<T>(),
+            type_path: type_path::<T>(),
             type_id: TypeId::of::<T>(),
         }
     }
 
-    /// The [type name] of the value.
+    /// The [type path] of the value.
     ///
-    /// [type name]: std::any::type_name
-    pub fn type_name(&self) -> &'static str {
-        self.type_name
+    /// [type path]: crate::TypePath
+    pub fn type_path(&self) -> &'static str {
+        self.type_path
     }
 
     /// The [`TypeId`] of the value.
@@ -198,23 +206,23 @@ impl ValueInfo {
 /// [`DynamicList`]: crate::DynamicList
 #[derive(Debug, Clone)]
 pub struct DynamicInfo {
-    type_name: &'static str,
+    type_path: &'static str,
     type_id: TypeId,
 }
 
 impl DynamicInfo {
-    pub fn new<T: Reflect>() -> Self {
+    pub fn new<T: Reflect + TypePath>() -> Self {
         Self {
-            type_name: std::any::type_name::<T>(),
+            type_path: type_path::<T>(),
             type_id: TypeId::of::<T>(),
         }
     }
 
-    /// The [type name] of the dynamic value.
+    /// The [type path] of the dynamic value.
     ///
-    /// [type name]: std::any::type_name
-    pub fn type_name(&self) -> &'static str {
-        self.type_name
+    /// [type path]: crate::TypePath
+    pub fn type_path(&self) -> &'static str {
+        self.type_path
     }
 
     /// The [`TypeId`] of the dynamic value.

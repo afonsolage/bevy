@@ -1,4 +1,4 @@
-use crate::{self as bevy_reflect, ReflectFromPtr};
+use crate::{self as bevy_reflect, ReflectFromPtr, TypePath};
 use crate::{
     map_apply, map_partial_eq, Array, ArrayInfo, ArrayIter, DynamicEnum, DynamicMap, Enum,
     EnumInfo, FromReflect, FromType, GetTypeRegistration, List, ListInfo, Map, MapInfo, MapIter,
@@ -7,8 +7,8 @@ use crate::{
     VariantInfo, VariantType,
 };
 
-use crate::utility::{GenericTypeInfoCell, NonGenericTypeInfoCell};
-use bevy_reflect_derive::{impl_from_reflect_value, impl_reflect_value};
+use crate::utility::{GenericTypeInfoCell, GenericTypePathCell, NonGenericTypeInfoCell};
+use bevy_reflect_derive::{impl_from_reflect_value, impl_reflect_value, impl_type_path};
 use bevy_utils::{Duration, HashMap, HashSet, Instant};
 use std::{
     any::Any,
@@ -38,28 +38,31 @@ impl_reflect_value!(isize(Debug, Hash, PartialEq, Serialize, Deserialize));
 impl_reflect_value!(f32(Debug, PartialEq, Serialize, Deserialize));
 impl_reflect_value!(f64(Debug, PartialEq, Serialize, Deserialize));
 impl_reflect_value!(String(Debug, Hash, PartialEq, Serialize, Deserialize));
-impl_reflect_value!(Result<T: Clone + Reflect + 'static, E: Clone + Reflect + 'static>());
-impl_reflect_value!(HashSet<T: Hash + Eq + Clone + Send + Sync + 'static>());
-impl_reflect_value!(Range<T: Clone + Send + Sync + 'static>());
-impl_reflect_value!(RangeInclusive<T: Clone + Send + Sync + 'static>());
-impl_reflect_value!(RangeFrom<T: Clone + Send + Sync + 'static>());
-impl_reflect_value!(RangeTo<T: Clone + Send + Sync + 'static>());
-impl_reflect_value!(RangeToInclusive<T: Clone + Send + Sync + 'static>());
-impl_reflect_value!(RangeFull());
-impl_reflect_value!(Duration(Debug, Hash, PartialEq, Serialize, Deserialize));
-impl_reflect_value!(Instant(Debug, Hash, PartialEq));
-impl_reflect_value!(NonZeroI128(Debug, Hash, PartialEq, Serialize, Deserialize));
-impl_reflect_value!(NonZeroU128(Debug, Hash, PartialEq, Serialize, Deserialize));
-impl_reflect_value!(NonZeroIsize(Debug, Hash, PartialEq, Serialize, Deserialize));
-impl_reflect_value!(NonZeroUsize(Debug, Hash, PartialEq, Serialize, Deserialize));
-impl_reflect_value!(NonZeroI64(Debug, Hash, PartialEq, Serialize, Deserialize));
-impl_reflect_value!(NonZeroU64(Debug, Hash, PartialEq, Serialize, Deserialize));
-impl_reflect_value!(NonZeroU32(Debug, Hash, PartialEq, Serialize, Deserialize));
-impl_reflect_value!(NonZeroI32(Debug, Hash, PartialEq, Serialize, Deserialize));
-impl_reflect_value!(NonZeroI16(Debug, Hash, PartialEq, Serialize, Deserialize));
-impl_reflect_value!(NonZeroU16(Debug, Hash, PartialEq, Serialize, Deserialize));
-impl_reflect_value!(NonZeroU8(Debug, Hash, PartialEq, Serialize, Deserialize));
-impl_reflect_value!(NonZeroI8(Debug, Hash, PartialEq, Serialize, Deserialize));
+impl_reflect_value!(
+    Result < T: Clone + Reflect + TypePath,
+    E: Clone + Reflect + TypePath > ()
+);
+impl_reflect_value!(HashSet<T: Hash + Eq + Clone + Send + Sync + TypePath>());
+impl_reflect_value!(@"std" Range<T: Clone + Send + Sync + TypePath >());
+impl_reflect_value!(@"std" RangeInclusive<T: Clone + Send + Sync + TypePath>());
+impl_reflect_value!(@"std" RangeFrom<T: Clone + Send + Sync + TypePath>());
+impl_reflect_value!(@"std" RangeTo<T: Clone + Send + Sync + TypePath>());
+impl_reflect_value!(@"std" RangeToInclusive<T: Clone + Send + Sync + TypePath>());
+impl_reflect_value!(@"std" RangeFull());
+impl_reflect_value!(@"std" Duration(Debug, Hash, PartialEq, Serialize, Deserialize));
+impl_reflect_value!(@"std" Instant(Debug, Hash, PartialEq));
+impl_reflect_value!(@"std" NonZeroI128(Debug, Hash, PartialEq, Serialize, Deserialize));
+impl_reflect_value!(@"std" NonZeroU128(Debug, Hash, PartialEq, Serialize, Deserialize));
+impl_reflect_value!(@"std" NonZeroIsize(Debug, Hash, PartialEq, Serialize, Deserialize));
+impl_reflect_value!(@"std" NonZeroUsize(Debug, Hash, PartialEq, Serialize, Deserialize));
+impl_reflect_value!(@"std" NonZeroI64(Debug, Hash, PartialEq, Serialize, Deserialize));
+impl_reflect_value!(@"std" NonZeroU64(Debug, Hash, PartialEq, Serialize, Deserialize));
+impl_reflect_value!(@"std" NonZeroU32(Debug, Hash, PartialEq, Serialize, Deserialize));
+impl_reflect_value!(@"std" NonZeroI32(Debug, Hash, PartialEq, Serialize, Deserialize));
+impl_reflect_value!(@"std" NonZeroI16(Debug, Hash, PartialEq, Serialize, Deserialize));
+impl_reflect_value!(@"std" NonZeroU16(Debug, Hash, PartialEq, Serialize, Deserialize));
+impl_reflect_value!(@"std" NonZeroU8(Debug, Hash, PartialEq, Serialize, Deserialize));
+impl_reflect_value!(@"std" NonZeroI8(Debug, Hash, PartialEq, Serialize, Deserialize));
 
 impl_from_reflect_value!(bool);
 impl_from_reflect_value!(char);
@@ -78,12 +81,12 @@ impl_from_reflect_value!(isize);
 impl_from_reflect_value!(f32);
 impl_from_reflect_value!(f64);
 impl_from_reflect_value!(String);
-impl_from_reflect_value!(HashSet<T: Hash + Eq + Clone + Send + Sync + 'static>);
-impl_from_reflect_value!(Range<T: Clone + Send + Sync + 'static>);
-impl_from_reflect_value!(RangeInclusive<T: Clone + Send + Sync + 'static>);
-impl_from_reflect_value!(RangeFrom<T: Clone + Send + Sync + 'static>);
-impl_from_reflect_value!(RangeTo<T: Clone + Send + Sync + 'static>);
-impl_from_reflect_value!(RangeToInclusive<T: Clone + Send + Sync + 'static>);
+impl_from_reflect_value!(HashSet<T: Hash + Eq + Clone + Send + Sync + TypePath>);
+impl_from_reflect_value!(Range<T: Clone + Send + Sync + TypePath>);
+impl_from_reflect_value!(RangeInclusive<T: Clone + Send + Sync + TypePath>);
+impl_from_reflect_value!(RangeFrom<T: Clone + Send + Sync + TypePath>);
+impl_from_reflect_value!(RangeTo<T: Clone + Send + Sync + TypePath>);
+impl_from_reflect_value!(RangeToInclusive<T: Clone + Send + Sync + TypePath>);
 impl_from_reflect_value!(RangeFull);
 impl_from_reflect_value!(Duration);
 impl_from_reflect_value!(Instant);
@@ -100,7 +103,66 @@ impl_from_reflect_value!(NonZeroU16);
 impl_from_reflect_value!(NonZeroU8);
 impl_from_reflect_value!(NonZeroI8);
 
-impl<T: FromReflect> Array for Vec<T> {
+impl_type_path!(Vec<T: TypePath>);
+impl_type_path!(HashMap<K: TypePath, V: TypePath>);
+impl_type_path!(Option<T: TypePath>);
+
+// impl_type_name expects a type path followed by generic between `<` and `>`.
+// so array is manually implemented.
+impl<T: TypePath, const N: usize> TypePath for [T; N] {
+    fn type_path() -> &'static str {
+        static CELL: GenericTypePathCell = GenericTypePathCell::new();
+        CELL.get_or_insert::<Self, _>(|| format!("[{}; {N}]", T::type_path()))
+    }
+    #[inline]
+    fn short_type_name_base() -> &'static str {
+        <Self as TypePath>::type_path()
+    }
+
+    #[inline]
+    fn short_type_name() -> &'static str {
+        <Self as TypePath>::type_path()
+    }
+
+    #[inline]
+    fn module_path() -> &'static str {
+        ""
+    }
+
+    #[inline]
+    fn crate_name() -> &'static str {
+        ""
+    }
+}
+
+impl TypePath for Cow<'static, str> {
+    #[inline]
+    fn type_path() -> &'static str {
+        "Cow<'static, str>"
+    }
+
+    #[inline]
+    fn short_type_name_base() -> &'static str {
+        "Cow"
+    }
+
+    #[inline]
+    fn short_type_name() -> &'static str {
+        <Self as TypePath>::type_path()
+    }
+
+    #[inline]
+    fn module_path() -> &'static str {
+        ""
+    }
+
+    #[inline]
+    fn crate_name() -> &'static str {
+        ""
+    }
+}
+
+impl<T: FromReflect + TypePath> Array for Vec<T> {
     #[inline]
     fn get(&self, index: usize) -> Option<&dyn Reflect> {
         <[T]>::get(self, index).map(|value| value as &dyn Reflect)
@@ -132,13 +194,13 @@ impl<T: FromReflect> Array for Vec<T> {
     }
 }
 
-impl<T: FromReflect> List for Vec<T> {
+impl<T: FromReflect + TypePath> List for Vec<T> {
     fn push(&mut self, value: Box<dyn Reflect>) {
         let value = value.take::<T>().unwrap_or_else(|value| {
             T::from_reflect(&*value).unwrap_or_else(|| {
                 panic!(
                     "Attempted to push invalid value of type {}.",
-                    value.type_name()
+                    value.type_path()
                 )
             })
         });
@@ -150,9 +212,9 @@ impl<T: FromReflect> List for Vec<T> {
     }
 }
 
-impl<T: FromReflect> Reflect for Vec<T> {
-    fn type_name(&self) -> &str {
-        std::any::type_name::<Self>()
+impl<T: FromReflect + TypePath> Reflect for Vec<T> {
+    fn type_path(&self) -> &str {
+        <Self as TypePath>::type_path()
     }
 
     fn get_type_info(&self) -> &'static TypeInfo {
@@ -209,14 +271,14 @@ impl<T: FromReflect> Reflect for Vec<T> {
     }
 }
 
-impl<T: FromReflect> Typed for Vec<T> {
+impl<T: FromReflect + TypePath> Typed for Vec<T> {
     fn type_info() -> &'static TypeInfo {
         static CELL: GenericTypeInfoCell = GenericTypeInfoCell::new();
         CELL.get_or_insert::<Self, _>(|| TypeInfo::List(ListInfo::new::<Self, T>()))
     }
 }
 
-impl<T: FromReflect> GetTypeRegistration for Vec<T> {
+impl<T: FromReflect + TypePath> GetTypeRegistration for Vec<T> {
     fn get_type_registration() -> TypeRegistration {
         let mut registration = TypeRegistration::of::<Vec<T>>();
         registration.insert::<ReflectFromPtr>(FromType::<Vec<T>>::from_type());
@@ -224,7 +286,7 @@ impl<T: FromReflect> GetTypeRegistration for Vec<T> {
     }
 }
 
-impl<T: FromReflect> FromReflect for Vec<T> {
+impl<T: FromReflect + TypePath> FromReflect for Vec<T> {
     fn from_reflect(reflect: &dyn Reflect) -> Option<Self> {
         if let ReflectRef::List(ref_list) = reflect.reflect_ref() {
             let mut new_list = Self::with_capacity(ref_list.len());
@@ -238,7 +300,7 @@ impl<T: FromReflect> FromReflect for Vec<T> {
     }
 }
 
-impl<K: FromReflect + Eq + Hash, V: FromReflect> Map for HashMap<K, V> {
+impl<K: FromReflect + TypePath + Eq + Hash, V: FromReflect + TypePath> Map for HashMap<K, V> {
     fn get(&self, key: &dyn Reflect) -> Option<&dyn Reflect> {
         key.downcast_ref::<K>()
             .and_then(|key| HashMap::get(self, key))
@@ -281,7 +343,7 @@ impl<K: FromReflect + Eq + Hash, V: FromReflect> Map for HashMap<K, V> {
 
     fn clone_dynamic(&self) -> DynamicMap {
         let mut dynamic_map = DynamicMap::default();
-        dynamic_map.set_name(self.type_name().to_string());
+        dynamic_map.set_name(self.type_path().to_string());
         for (k, v) in self {
             dynamic_map.insert_boxed(k.clone_value(), v.clone_value());
         }
@@ -297,7 +359,7 @@ impl<K: FromReflect + Eq + Hash, V: FromReflect> Map for HashMap<K, V> {
             K::from_reflect(&*key).unwrap_or_else(|| {
                 panic!(
                     "Attempted to insert invalid key of type {}.",
-                    key.type_name()
+                    key.type_path()
                 )
             })
         });
@@ -305,7 +367,7 @@ impl<K: FromReflect + Eq + Hash, V: FromReflect> Map for HashMap<K, V> {
             V::from_reflect(&*value).unwrap_or_else(|| {
                 panic!(
                     "Attempted to insert invalid value of type {}.",
-                    value.type_name()
+                    value.type_path()
                 )
             })
         });
@@ -314,9 +376,9 @@ impl<K: FromReflect + Eq + Hash, V: FromReflect> Map for HashMap<K, V> {
     }
 }
 
-impl<K: FromReflect + Eq + Hash, V: FromReflect> Reflect for HashMap<K, V> {
-    fn type_name(&self) -> &str {
-        std::any::type_name::<Self>()
+impl<K: FromReflect + TypePath + Eq + Hash, V: FromReflect + TypePath> Reflect for HashMap<K, V> {
+    fn type_path(&self) -> &str {
+        <Self as TypePath>::type_path()
     }
 
     fn get_type_info(&self) -> &'static TypeInfo {
@@ -369,7 +431,7 @@ impl<K: FromReflect + Eq + Hash, V: FromReflect> Reflect for HashMap<K, V> {
     }
 }
 
-impl<K: FromReflect + Eq + Hash, V: FromReflect> Typed for HashMap<K, V> {
+impl<K: FromReflect + TypePath + Eq + Hash, V: FromReflect + TypePath> Typed for HashMap<K, V> {
     fn type_info() -> &'static TypeInfo {
         static CELL: GenericTypeInfoCell = GenericTypeInfoCell::new();
         CELL.get_or_insert::<Self, _>(|| TypeInfo::Map(MapInfo::new::<Self, K, V>()))
@@ -378,8 +440,8 @@ impl<K: FromReflect + Eq + Hash, V: FromReflect> Typed for HashMap<K, V> {
 
 impl<K, V> GetTypeRegistration for HashMap<K, V>
 where
-    K: FromReflect + Eq + Hash,
-    V: FromReflect,
+    K: FromReflect + TypePath + Eq + Hash,
+    V: FromReflect + TypePath,
 {
     fn get_type_registration() -> TypeRegistration {
         let mut registration = TypeRegistration::of::<HashMap<K, V>>();
@@ -388,7 +450,9 @@ where
     }
 }
 
-impl<K: FromReflect + Eq + Hash, V: FromReflect> FromReflect for HashMap<K, V> {
+impl<K: FromReflect + TypePath + Eq + Hash, V: FromReflect + TypePath> FromReflect
+    for HashMap<K, V>
+{
     fn from_reflect(reflect: &dyn Reflect) -> Option<Self> {
         if let ReflectRef::Map(ref_map) = reflect.reflect_ref() {
             let mut new_map = Self::with_capacity(ref_map.len());
@@ -404,7 +468,7 @@ impl<K: FromReflect + Eq + Hash, V: FromReflect> FromReflect for HashMap<K, V> {
     }
 }
 
-impl<T: Reflect, const N: usize> Array for [T; N] {
+impl<T: Reflect + TypePath, const N: usize> Array for [T; N] {
     #[inline]
     fn get(&self, index: usize) -> Option<&dyn Reflect> {
         <[T]>::get(self, index).map(|value| value as &dyn Reflect)
@@ -436,10 +500,9 @@ impl<T: Reflect, const N: usize> Array for [T; N] {
     }
 }
 
-impl<T: Reflect, const N: usize> Reflect for [T; N] {
-    #[inline]
-    fn type_name(&self) -> &str {
-        std::any::type_name::<Self>()
+impl<T: Reflect + TypePath, const N: usize> Reflect for [T; N] {
+    fn type_path(&self) -> &str {
+        <Self as TypePath>::type_path()
     }
 
     fn get_type_info(&self) -> &'static TypeInfo {
@@ -508,7 +571,7 @@ impl<T: Reflect, const N: usize> Reflect for [T; N] {
     }
 }
 
-impl<T: FromReflect, const N: usize> FromReflect for [T; N] {
+impl<T: FromReflect + TypePath, const N: usize> FromReflect for [T; N] {
     fn from_reflect(reflect: &dyn Reflect) -> Option<Self> {
         if let ReflectRef::Array(ref_array) = reflect.reflect_ref() {
             let mut temp_vec = Vec::with_capacity(ref_array.len());
@@ -522,7 +585,7 @@ impl<T: FromReflect, const N: usize> FromReflect for [T; N] {
     }
 }
 
-impl<T: Reflect, const N: usize> Typed for [T; N] {
+impl<T: Reflect + TypePath, const N: usize> Typed for [T; N] {
     fn type_info() -> &'static TypeInfo {
         static CELL: GenericTypeInfoCell = GenericTypeInfoCell::new();
         CELL.get_or_insert::<Self, _>(|| TypeInfo::Array(ArrayInfo::new::<Self, T>(N)))
@@ -537,7 +600,7 @@ impl<T: Reflect, const N: usize> Typed for [T; N] {
 macro_rules! impl_array_get_type_registration {
     ($($N:expr)+) => {
         $(
-            impl<T: Reflect > GetTypeRegistration for [T; $N] {
+            impl<T: Reflect + TypePath> GetTypeRegistration for [T; $N] {
                 fn get_type_registration() -> TypeRegistration {
                     TypeRegistration::of::<[T; $N]>()
                 }
@@ -554,8 +617,8 @@ impl_array_get_type_registration! {
 }
 
 impl Reflect for Cow<'static, str> {
-    fn type_name(&self) -> &str {
-        std::any::type_name::<Self>()
+    fn type_path(&self) -> &str {
+        <Self as TypePath>::type_path()
     }
 
     fn get_type_info(&self) -> &'static TypeInfo {
@@ -587,7 +650,7 @@ impl Reflect for Cow<'static, str> {
         if let Some(value) = value.downcast_ref::<Self>() {
             *self = value.clone();
         } else {
-            panic!("Value is not a {}.", std::any::type_name::<Self>());
+            panic!("Value is not a {}.", <Self as TypePath>::type_path());
         }
     }
 
@@ -625,13 +688,13 @@ impl Reflect for Cow<'static, str> {
     }
 }
 
-impl<T: FromReflect> GetTypeRegistration for Option<T> {
+impl<T: FromReflect + TypePath> GetTypeRegistration for Option<T> {
     fn get_type_registration() -> TypeRegistration {
         TypeRegistration::of::<Option<T>>()
     }
 }
 
-impl<T: FromReflect> Enum for Option<T> {
+impl<T: FromReflect + TypePath> Enum for Option<T> {
     fn field(&self, _name: &str) -> Option<&dyn Reflect> {
         None
     }
@@ -695,10 +758,9 @@ impl<T: FromReflect> Enum for Option<T> {
     }
 }
 
-impl<T: FromReflect> Reflect for Option<T> {
-    #[inline]
-    fn type_name(&self) -> &str {
-        std::any::type_name::<Self>()
+impl<T: FromReflect + TypePath> Reflect for Option<T> {
+    fn type_path(&self) -> &str {
+        <Self as TypePath>::type_path()
     }
 
     #[inline]
@@ -748,7 +810,7 @@ impl<T: FromReflect> Reflect for Option<T> {
                             .unwrap_or_else(|| {
                                 panic!(
                                     "Field in `Some` variant of {} should exist",
-                                    std::any::type_name::<Option<T>>()
+                                    <Option::<T> as TypePath>::type_path()
                                 )
                             })
                             .clone_value()
@@ -757,8 +819,8 @@ impl<T: FromReflect> Reflect for Option<T> {
                                 T::from_reflect(&*value).unwrap_or_else(|| {
                                     panic!(
                                         "Field in `Some` variant of {} should be of type {}",
-                                        std::any::type_name::<Option<T>>(),
-                                        std::any::type_name::<T>()
+                                        <Option::<T> as TypePath>::type_path(),
+                                        <T as TypePath>::type_path()
                                     )
                                 })
                             });
@@ -767,7 +829,7 @@ impl<T: FromReflect> Reflect for Option<T> {
                     "None" => {
                         *self = None;
                     }
-                    _ => panic!("Enum is not a {}.", std::any::type_name::<Self>()),
+                    _ => panic!("Enum is not a {}.", <Self as TypePath>::type_path()),
                 }
             }
         }
@@ -801,7 +863,7 @@ impl<T: FromReflect> Reflect for Option<T> {
     }
 }
 
-impl<T: FromReflect> FromReflect for Option<T> {
+impl<T: FromReflect + TypePath> FromReflect for Option<T> {
     fn from_reflect(reflect: &dyn Reflect) -> Option<Self> {
         if let ReflectRef::Enum(dyn_enum) = reflect.reflect_ref() {
             match dyn_enum.variant_name() {
@@ -811,7 +873,7 @@ impl<T: FromReflect> FromReflect for Option<T> {
                         .unwrap_or_else(|| {
                             panic!(
                                 "Field in `Some` variant of {} should exist",
-                                std::any::type_name::<Option<T>>()
+                                <Option::<T> as TypePath>::type_path()
                             )
                         })
                         .clone_value()
@@ -820,8 +882,8 @@ impl<T: FromReflect> FromReflect for Option<T> {
                             T::from_reflect(&*value).unwrap_or_else(|| {
                                 panic!(
                                     "Field in `Some` variant of {} should be of type {}",
-                                    std::any::type_name::<Option<T>>(),
-                                    std::any::type_name::<T>()
+                                    <Option::<T> as TypePath>::type_path(),
+                                    <T as TypePath>::type_path()
                                 )
                             })
                         });
@@ -831,7 +893,7 @@ impl<T: FromReflect> FromReflect for Option<T> {
                 name => panic!(
                     "variant with name `{}` does not exist on enum `{}`",
                     name,
-                    std::any::type_name::<Self>()
+                    <Self as TypePath>::type_path()
                 ),
             }
         } else {
@@ -840,7 +902,7 @@ impl<T: FromReflect> FromReflect for Option<T> {
     }
 }
 
-impl<T: FromReflect> Typed for Option<T> {
+impl<T: FromReflect + TypePath> Typed for Option<T> {
     fn type_info() -> &'static TypeInfo {
         static CELL: GenericTypeInfoCell = GenericTypeInfoCell::new();
         CELL.get_or_insert::<Self, _>(|| {
@@ -982,7 +1044,7 @@ mod tests {
             .unwrap_or_default());
 
         assert_eq!("Some", value.variant_name());
-        assert_eq!("core::option::Option<usize>::Some", value.variant_path());
+        assert_eq!("Option<usize>::Some", value.variant_path());
 
         if value.is_variant(VariantType::Tuple) {
             if let Some(field) = value
