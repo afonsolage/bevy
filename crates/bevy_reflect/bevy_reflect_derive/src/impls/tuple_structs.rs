@@ -9,13 +9,21 @@ pub(crate) fn impl_tuple_struct(reflect_struct: &ReflectStruct) -> TokenStream {
     let bevy_reflect_path = reflect_struct.meta().bevy_reflect_path();
     let struct_name = reflect_struct.meta().type_name();
     let get_type_registration_impl = reflect_struct.get_type_registration();
+    let is_remote = reflect_struct.is_remote();
 
-    let field_idents = reflect_struct
+    let field_accessors = reflect_struct
         .active_fields()
         .map(|field| Member::Unnamed(Index::from(field.index)))
+        .map(|member| {
+            if is_remote {
+                quote!(0.#member)
+            } else {
+                quote!(#member)
+            }
+        })
         .collect::<Vec<_>>();
     let field_types = reflect_struct.active_types();
-    let field_count = field_idents.len();
+    let field_count = field_accessors.len();
     let field_indices = (0..field_count).collect::<Vec<usize>>();
 
     let hash_fn = reflect_struct
@@ -41,7 +49,7 @@ pub(crate) fn impl_tuple_struct(reflect_struct: &ReflectStruct) -> TokenStream {
         reflect_struct.meta().generics(),
         quote! {
             let fields = [
-                #(#bevy_reflect_path::UnnamedField::new::<#field_types>(#field_idents),)*
+                #(#bevy_reflect_path::UnnamedField::new::<#field_types>(#field_indices),)*
             ];
             let info = #bevy_reflect_path::TupleStructInfo::new::<Self>(#string_name, &fields);
             #bevy_reflect_path::TypeInfo::TupleStruct(info)
@@ -60,14 +68,14 @@ pub(crate) fn impl_tuple_struct(reflect_struct: &ReflectStruct) -> TokenStream {
         impl #impl_generics #bevy_reflect_path::TupleStruct for #struct_name #ty_generics #where_clause {
             fn field(&self, index: usize) -> Option<&dyn #bevy_reflect_path::Reflect> {
                 match index {
-                    #(#field_indices => Some(&self.#field_idents),)*
+                    #(#field_indices => Some(&self.#field_accessors),)*
                     _ => None,
                 }
             }
 
             fn field_mut(&mut self, index: usize) -> Option<&mut dyn #bevy_reflect_path::Reflect> {
                 match index {
-                    #(#field_indices => Some(&mut self.#field_idents),)*
+                    #(#field_indices => Some(&mut self.#field_accessors),)*
                     _ => None,
                 }
             }
@@ -83,7 +91,7 @@ pub(crate) fn impl_tuple_struct(reflect_struct: &ReflectStruct) -> TokenStream {
             fn clone_dynamic(&self) -> #bevy_reflect_path::DynamicTupleStruct {
                 let mut dynamic = #bevy_reflect_path::DynamicTupleStruct::default();
                 dynamic.set_name(self.type_name().to_string());
-                #(dynamic.insert_boxed(self.#field_idents.clone_value());)*
+                #(dynamic.insert_boxed(self.#field_accessors.clone_value());)*
                 dynamic
             }
         }

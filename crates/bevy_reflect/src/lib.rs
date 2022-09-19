@@ -948,6 +948,35 @@ bevy_reflect::tests::should_reflect_debug::Test {
         assert_eq!(expected, format!("\n{:#?}", reflected));
     }
 
+    #[test]
+    fn should_reflect_remote_type() {
+        mod external_crate {
+            #[derive(Debug, Default)]
+            pub struct TheirType {
+                pub value: String,
+            }
+        }
+
+        #[reflect_remote(external_crate::TheirType)]
+        #[derive(Debug, Default)]
+        #[reflect(Debug, Default)]
+        struct MyType {
+            pub value: String,
+        }
+
+        let mut patch = DynamicStruct::default();
+        patch.set_name("MyType".to_string());
+        patch.insert("value", "Goodbye".to_string());
+
+        let mut data = MyType(external_crate::TheirType {
+            value: "Hello".to_string(),
+        });
+
+        assert_eq!("Hello", data.0.value);
+        data.apply(&patch);
+        assert_eq!("Goodbye", data.0.value);
+    }
+
     #[cfg(feature = "glam")]
     mod glam {
         use super::*;

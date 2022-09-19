@@ -8,6 +8,7 @@ use syn::{Index, Member};
 pub(crate) fn impl_struct(reflect_struct: &ReflectStruct) -> TokenStream {
     let bevy_reflect_path = reflect_struct.meta().bevy_reflect_path();
     let struct_name = reflect_struct.meta().type_name();
+    let is_remote = reflect_struct.is_remote();
 
     let field_names = reflect_struct
         .active_fields()
@@ -20,19 +21,25 @@ pub(crate) fn impl_struct(reflect_struct: &ReflectStruct) -> TokenStream {
                 .unwrap_or_else(|| field.index.to_string())
         })
         .collect::<Vec<String>>();
-    let field_idents = reflect_struct
+    let field_accessors = reflect_struct
         .active_fields()
         .map(|field| {
-            field
+            let member = field
                 .data
                 .ident
                 .as_ref()
                 .map(|ident| Member::Named(ident.clone()))
-                .unwrap_or_else(|| Member::Unnamed(Index::from(field.index)))
+                .unwrap_or_else(|| Member::Unnamed(Index::from(field.index)));
+
+            if is_remote {
+                quote!(0.#member)
+            } else {
+                quote!(#member)
+            }
         })
         .collect::<Vec<_>>();
     let field_types = reflect_struct.active_types();
-    let field_count = field_idents.len();
+    let field_count = field_accessors.len();
     let field_indices = (0..field_count).collect::<Vec<usize>>();
 
     let hash_fn = reflect_struct
@@ -77,28 +84,28 @@ pub(crate) fn impl_struct(reflect_struct: &ReflectStruct) -> TokenStream {
         impl #impl_generics #bevy_reflect_path::Struct for #struct_name #ty_generics #where_clause {
             fn field(&self, name: &str) -> Option<&dyn #bevy_reflect_path::Reflect> {
                 match name {
-                    #(#field_names => Some(&self.#field_idents),)*
+                    #(#field_names => Some(&self.#field_accessors),)*
                     _ => None,
                 }
             }
 
             fn field_mut(&mut self, name: &str) -> Option<&mut dyn #bevy_reflect_path::Reflect> {
                 match name {
-                    #(#field_names => Some(&mut self.#field_idents),)*
+                    #(#field_names => Some(&mut self.#field_accessors),)*
                     _ => None,
                 }
             }
 
             fn field_at(&self, index: usize) -> Option<&dyn #bevy_reflect_path::Reflect> {
                 match index {
-                    #(#field_indices => Some(&self.#field_idents),)*
+                    #(#field_indices => Some(&self.#field_accessors),)*
                     _ => None,
                 }
             }
 
             fn field_at_mut(&mut self, index: usize) -> Option<&mut dyn #bevy_reflect_path::Reflect> {
                 match index {
-                    #(#field_indices => Some(&mut self.#field_idents),)*
+                    #(#field_indices => Some(&mut self.#field_accessors),)*
                     _ => None,
                 }
             }
@@ -121,7 +128,7 @@ pub(crate) fn impl_struct(reflect_struct: &ReflectStruct) -> TokenStream {
             fn clone_dynamic(&self) -> #bevy_reflect_path::DynamicStruct {
                 let mut dynamic = #bevy_reflect_path::DynamicStruct::default();
                 dynamic.set_name(self.type_name().to_string());
-                #(dynamic.insert_boxed(#field_names, self.#field_idents.clone_value());)*
+                #(dynamic.insert_boxed(#field_names, self.#field_accessors.clone_value());)*
                 dynamic
             }
         }
