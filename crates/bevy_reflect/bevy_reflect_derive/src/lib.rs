@@ -23,6 +23,7 @@ mod impls;
 mod reflect_value;
 mod registration;
 mod remote;
+mod struct_utility;
 mod trait_reflection;
 mod type_uuid;
 mod utility;

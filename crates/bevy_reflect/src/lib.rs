@@ -957,6 +957,7 @@ bevy_reflect::tests::should_reflect_debug::Test {
             }
         }
 
+        // === Remote Wrapper === //
         #[reflect_remote(external_crate::TheirType)]
         #[derive(Debug, Default)]
         #[reflect(Debug, Default)]
@@ -969,6 +970,50 @@ bevy_reflect::tests::should_reflect_debug::Test {
         patch.insert("value", "Goodbye".to_string());
 
         let mut data = MyType(external_crate::TheirType {
+            value: "Hello".to_string(),
+        });
+
+        assert_eq!("Hello", data.0.value);
+        data.apply(&patch);
+        assert_eq!("Goodbye", data.0.value);
+
+        // === Struct Container === //
+        #[derive(Reflect, Debug)]
+        struct ContainerStruct {
+            #[reflect(remote = "MyType")]
+            their_type: external_crate::TheirType,
+        }
+
+        let mut patch = DynamicStruct::default();
+        patch.set_name("ContainerStruct".to_string());
+        patch.insert(
+            "their_type",
+            MyType(external_crate::TheirType {
+                value: "Goodbye".to_string(),
+            }),
+        );
+
+        let mut data = ContainerStruct {
+            their_type: external_crate::TheirType {
+                value: "Hello".to_string(),
+            },
+        };
+
+        assert_eq!("Hello", data.their_type.value);
+        data.apply(&patch);
+        assert_eq!("Goodbye", data.their_type.value);
+
+        // === Tuple Struct Container === //
+        #[derive(Reflect, Debug)]
+        struct ContainerTupleStruct(#[reflect(remote = "MyType")] external_crate::TheirType);
+
+        let mut patch = DynamicTupleStruct::default();
+        patch.set_name("ContainerTupleStruct".to_string());
+        patch.insert(MyType(external_crate::TheirType {
+            value: "Goodbye".to_string(),
+        }));
+
+        let mut data = ContainerTupleStruct(external_crate::TheirType {
             value: "Hello".to_string(),
         });
 

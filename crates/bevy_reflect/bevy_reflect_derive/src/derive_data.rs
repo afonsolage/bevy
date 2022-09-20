@@ -8,7 +8,7 @@ use crate::{utility, REFLECT_ATTRIBUTE_NAME, REFLECT_VALUE_ATTRIBUTE_NAME};
 use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
 use syn::{
-    Data, DeriveInput, Field, Fields, Generics, Ident, Meta, Path, Token, TypePath, Variant,
+    Data, DeriveInput, Field, Fields, Generics, Ident, Meta, Path, Token, Type, TypePath, Variant,
 };
 
 pub(crate) enum ReflectDerive<'a> {
@@ -287,6 +287,16 @@ impl<'a> ReflectMeta<'a> {
     }
 }
 
+impl<'a> StructField<'a> {
+    /// Returns the reflected type of this field.
+    ///
+    /// Normally this is just the field's defined type.
+    /// However, this can be adjusted to use a different type, like for representing remote types.
+    pub fn reflected_type(&self) -> &Type {
+        self.attrs.remote.as_ref().unwrap_or(&self.data.ty)
+    }
+}
+
 impl<'a> ReflectStruct<'a> {
     /// Access the metadata associated with this struct definition.
     pub fn meta(&self) -> &ReflectMeta<'a> {
@@ -332,7 +342,7 @@ impl<'a> ReflectStruct<'a> {
         self.fields
             .iter()
             .filter(move |field| field.attrs.ignore.is_active())
-            .map(|field| field.data.ty.clone())
+            .map(|field| field.reflected_type().clone())
             .collect::<Vec<_>>()
     }
 
