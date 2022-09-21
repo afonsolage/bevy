@@ -43,7 +43,7 @@ pub(crate) fn impl_enum(reflect_enum: &ReflectEnum) -> TokenStream {
         variant_constructors,
     } = get_variant_constructors(reflect_enum, &ref_value, false);
 
-    let match_branches = if reflect_enum.is_remote() {
+    let match_branches = if reflect_enum.is_remote_wrapper() {
         quote! {
             #(#variant_names => Some(Self(#variant_constructors)),)*
         }

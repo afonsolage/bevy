@@ -8,7 +8,7 @@ use quote::quote;
 pub(crate) fn impl_enum(reflect_enum: &ReflectEnum) -> TokenStream {
     let bevy_reflect_path = reflect_enum.meta().bevy_reflect_path();
     let enum_name = reflect_enum.meta().type_name();
-    let is_remote = reflect_enum.is_remote();
+    let is_remote = reflect_enum.is_remote_wrapper();
 
     // For `match self` expressions where self is a reference
     let match_this = if is_remote {
