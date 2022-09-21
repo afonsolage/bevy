@@ -43,6 +43,16 @@ pub(crate) fn impl_enum(reflect_enum: &ReflectEnum) -> TokenStream {
         variant_constructors,
     } = get_variant_constructors(reflect_enum, &ref_value, false);
 
+    let match_branches = if reflect_enum.is_remote() {
+        quote! {
+            #(#variant_names => Some(Self(#variant_constructors)),)*
+        }
+    } else {
+        quote! {
+            #(#variant_names => Some(#variant_constructors),)*
+        }
+    };
+
     let (impl_generics, ty_generics, where_clause) =
         reflect_enum.meta().generics().split_for_impl();
     TokenStream::from(quote! {
@@ -50,7 +60,7 @@ pub(crate) fn impl_enum(reflect_enum: &ReflectEnum) -> TokenStream {
             fn from_reflect(#ref_value: &dyn #bevy_reflect_path::Reflect) -> Option<Self> {
                 if let #bevy_reflect_path::ReflectRef::Enum(#ref_value) = #ref_value.reflect_ref() {
                     match #ref_value.variant_name() {
-                        #(#variant_names => Some(#variant_constructors),)*
+                        #match_branches
                         name => panic!("variant with name `{}` does not exist on enum `{}`", name, std::any::type_name::<Self>()),
                     }
                 } else {
@@ -87,29 +97,38 @@ fn impl_struct_internal(reflect_struct: &ReflectStruct, is_tuple: bool) -> Token
     let MemberValuePair(active_members, active_values) =
         get_active_fields(reflect_struct, &ref_struct, &ref_struct_type, is_tuple);
 
+    // The constructed "Self" ident
+    let __this = Ident::new("__this", Span::call_site());
+
+    // The reflected type: either `Self` or a remote type
+    let (reflect_ty, retval) = if let Some(remote_ty) = reflect_struct.remote_ty() {
+        (quote!(#remote_ty), quote!(Self(#__this)))
+    } else {
+        (quote!(Self), quote!(#__this))
+    };
+
     let constructor = if reflect_struct.meta().traits().contains(REFLECT_DEFAULT) {
-        quote!(
-            let mut __this = Self::default();
+        quote! {
+            let mut #__this = <#reflect_ty as ::std::default::Default>::default();
             #(
                 if let Some(__field) = #active_values() {
                     // Iff field exists -> use its value
-                    __this.#active_members = __field;
+                    #__this.#active_members = __field;
                 }
             )*
-            Some(__this)
-        )
+            Some(#retval)
+        }
     } else {
         let MemberValuePair(ignored_members, ignored_values) =
             get_ignored_fields(reflect_struct, is_tuple);
 
-        quote!(
-            Some(
-                Self {
-                    #(#active_members: #active_values()?,)*
-                    #(#ignored_members: #ignored_values,)*
-                }
-            )
-        )
+        quote! {
+            let #__this = #reflect_ty {
+                #(#active_members: #active_values()?,)*
+                #(#ignored_members: #ignored_values,)*
+            };
+            Some(#retval)
+        }
     };
 
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();

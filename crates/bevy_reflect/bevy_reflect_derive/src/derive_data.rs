@@ -292,6 +292,7 @@ impl<'a> StructField<'a> {
     ///
     /// Normally this is just the field's defined type.
     /// However, this can be adjusted to use a different type, like for representing remote types.
+    /// In those cases, the returned value is the remote wrapper type.
     pub fn reflected_type(&self) -> &Type {
         self.attrs.remote.as_ref().unwrap_or(&self.data.ty)
     }
