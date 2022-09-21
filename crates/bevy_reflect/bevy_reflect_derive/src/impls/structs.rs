@@ -1,3 +1,4 @@
+use crate::impls::any::impl_reflect_any_methods;
 use crate::impls::impl_typed;
 use crate::struct_utility::FieldAccessors;
 use crate::ReflectStruct;
@@ -25,7 +26,7 @@ pub(crate) fn impl_struct(reflect_struct: &ReflectStruct) -> TokenStream {
         fields_ref,
         fields_mut,
         field_indices,
-        field_count
+        field_count,
     } = FieldAccessors::new(reflect_struct);
     let field_types = reflect_struct.active_types();
 
@@ -58,6 +59,8 @@ pub(crate) fn impl_struct(reflect_struct: &ReflectStruct) -> TokenStream {
         },
         bevy_reflect_path,
     );
+
+    let any_impls = impl_reflect_any_methods(reflect_struct.is_remote_wrapper());
 
     let get_type_registration_impl = reflect_struct.get_type_registration();
     let (impl_generics, ty_generics, where_clause) =
@@ -131,20 +134,7 @@ pub(crate) fn impl_struct(reflect_struct: &ReflectStruct) -> TokenStream {
                 <Self as #bevy_reflect_path::Typed>::type_info()
             }
 
-            #[inline]
-            fn into_any(self: Box<Self>) -> Box<dyn std::any::Any> {
-                self
-            }
-
-            #[inline]
-            fn as_any(&self) -> &dyn std::any::Any {
-                self
-            }
-
-            #[inline]
-            fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
-                self
-            }
+            #any_impls
 
             #[inline]
             fn as_reflect(&self) -> &dyn #bevy_reflect_path::Reflect {
