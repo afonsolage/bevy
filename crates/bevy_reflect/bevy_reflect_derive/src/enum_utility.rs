@@ -69,6 +69,7 @@ pub(crate) fn get_variant_constructors(
                 if let Some(field_ty) = &field.attrs.remote {
                     quote! {
                         unsafe {
+                            // SAFE: The wrapper type should be repr(transparent) over the remote type
                             ::std::mem::transmute(
                                 <#field_ty as #bevy_reflect_path::FromReflect>::from_reflect(#ref_value #accessor)
                                 #unwrapper

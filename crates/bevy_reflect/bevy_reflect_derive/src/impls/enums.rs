@@ -341,6 +341,7 @@ fn generate_impls(reflect_enum: &ReflectEnum, ref_index: &Ident, ref_name: &Iden
                 .as_ref()
                 .map(|ty| {
                     quote! {
+                        // SAFE: The wrapper type should be repr(transparent) over the remote type
                         unsafe { ::std::mem::transmute::<#ref_token _, #ref_token #ty>(#ident) }
                     }
                 })

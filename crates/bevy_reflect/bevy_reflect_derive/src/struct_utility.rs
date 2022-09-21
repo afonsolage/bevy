@@ -27,6 +27,7 @@ impl FieldAccessors {
             match &field.attrs.remote {
                 Some(wrapper_ty) => {
                     quote! {
+                        // SAFE: The wrapper type should be repr(transparent) over the remote type
                         unsafe { ::std::mem::transmute_copy::<_, #wrapper_ty>(&#accessor) }
                     }
                 }
@@ -37,6 +38,7 @@ impl FieldAccessors {
             match &field.attrs.remote {
                 Some(wrapper_ty) => {
                     quote! {
+                        // SAFE: The wrapper type should be repr(transparent) over the remote type
                         unsafe { ::std::mem::transmute::<&_, &#wrapper_ty>(&#accessor) }
                     }
                 }
@@ -47,6 +49,7 @@ impl FieldAccessors {
             match &field.attrs.remote {
                 Some(wrapper_ty) => {
                     quote! {
+                        // SAFE: The wrapper type should be repr(transparent) over the remote type
                         unsafe { ::std::mem::transmute::<&mut _, &mut #wrapper_ty>(&mut #accessor) }
                     }
                 }
