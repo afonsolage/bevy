@@ -1,8 +1,9 @@
 use crate::container_attributes::ReflectTraits;
+use crate::derive_data::TypePathOptions;
 use proc_macro2::Ident;
 use syn::parse::{Parse, ParseStream};
 use syn::token::{Paren, Where};
-use syn::{parenthesized, Generics};
+use syn::{parenthesized, Generics, LitStr, Token};
 
 /// A struct used to define a simple reflected value type (such as primitives).
 ///
@@ -49,6 +50,40 @@ impl Parse for ReflectValueDef {
                 ..generics
             },
             traits,
+        })
+    }
+}
+
+/// A [`ReflectValueDef`] that allow an optional custom type path in front.
+///
+/// # Example
+///
+/// ```ignore
+/// impl_reflect_value!(@"my_lib::my_module" Foo<T1, T2> where T1: Bar (TraitA, TraitB));
+/// ```
+pub(crate) struct NamedReflectValueDef {
+    pub type_path_options: TypePathOptions,
+    pub def: ReflectValueDef,
+}
+
+impl Parse for NamedReflectValueDef {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        let lookahead = input.lookahead1();
+        let mut module_path = None;
+        if lookahead.peek(Token![@]) {
+            let _at: Token![@] = input.parse()?;
+            let name: LitStr = input.parse()?;
+            module_path = Some(name.value());
+        }
+
+        let def = input.parse()?;
+
+        Ok(Self {
+            type_path_options: TypePathOptions {
+                module_path: module_path.or_else(|| Some(String::new())),
+                type_ident: None,
+            },
+            def,
         })
     }
 }

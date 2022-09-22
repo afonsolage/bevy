@@ -37,7 +37,7 @@ fn get_serializable<'a, E: serde::ser::Error>(
         .ok_or_else(|| {
             serde::ser::Error::custom(format_args!(
                 "Type '{}' did not register ReflectSerialize",
-                reflect_value.type_name()
+                reflect_value.type_path()
             ))
         })?;
     Ok(reflect_serialize.get_serializable(reflect_value))
@@ -89,7 +89,7 @@ impl<'a> Serialize for ReflectSerializer<'a> {
     {
         let mut state = serializer.serialize_map(Some(1))?;
         state.serialize_entry(
-            self.value.type_name(),
+            self.value.type_path(),
             &TypedReflectSerializer::new(self.value, self.registry),
         )?;
         state.end()
@@ -189,7 +189,7 @@ impl<'a> Serialize for StructSerializer<'a> {
     {
         let type_info = get_type_info(
             self.struct_value.get_type_info(),
-            self.struct_value.type_name(),
+            self.struct_value.type_path(),
             self.registry,
         )?;
 
@@ -239,7 +239,7 @@ impl<'a> Serialize for TupleStructSerializer<'a> {
     {
         let type_info = get_type_info(
             self.tuple_struct.get_type_info(),
-            self.tuple_struct.type_name(),
+            self.tuple_struct.type_path(),
             self.registry,
         )?;
 
@@ -288,7 +288,7 @@ impl<'a> Serialize for EnumSerializer<'a> {
     {
         let type_info = get_type_info(
             self.enum_value.get_type_info(),
-            self.enum_value.type_name(),
+            self.enum_value.type_path(),
             self.registry,
         )?;
 
@@ -318,11 +318,7 @@ impl<'a> Serialize for EnumSerializer<'a> {
 
         match variant_type {
             VariantType::Unit => {
-                if self
-                    .enum_value
-                    .type_name()
-                    .starts_with("core::option::Option")
-                {
+                if self.enum_value.type_path().starts_with("Option<") {
                     serializer.serialize_none()
                 } else {
                     serializer.serialize_unit_variant(enum_name, variant_index, variant_name)
@@ -356,11 +352,7 @@ impl<'a> Serialize for EnumSerializer<'a> {
             }
             VariantType::Tuple if field_len == 1 => {
                 let field = self.enum_value.field_at(0).unwrap();
-                if self
-                    .enum_value
-                    .type_name()
-                    .starts_with("core::option::Option")
-                {
+                if self.enum_value.type_path().starts_with("Option<") {
                     serializer.serialize_some(&TypedReflectSerializer::new(field, self.registry))
                 } else {
                     serializer.serialize_newtype_variant(
@@ -641,7 +633,7 @@ mod tests {
 
         let output = ron::ser::to_string_pretty(&serializer, config).unwrap();
         let expected = r#"{
-    "bevy_reflect::serde::ser::tests::should_serialize_option::OptionTest": (
+    "bevy_reflect::serde::ser::tests::OptionTest": (
         none: None,
         simple: Some("Hello world!"),
         complex: Some((
@@ -661,7 +653,7 @@ mod tests {
         let output = ron::ser::to_string_pretty(&serializer, config).unwrap();
         let expected = r#"#![enable(implicit_some)]
 {
-    "bevy_reflect::serde::ser::tests::should_serialize_option::OptionTest": (
+    "bevy_reflect::serde::ser::tests::OptionTest": (
         none: None,
         simple: "Hello world!",
         complex: (
@@ -693,7 +685,7 @@ mod tests {
         let serializer = ReflectSerializer::new(&value, &registry);
         let output = ron::ser::to_string_pretty(&serializer, config.clone()).unwrap();
         let expected = r#"{
-    "bevy_reflect::serde::ser::tests::enum_should_serialize::MyEnum": Unit,
+    "bevy_reflect::serde::ser::tests::MyEnum": Unit,
 }"#;
         assert_eq!(expected, output);
 
@@ -702,7 +694,7 @@ mod tests {
         let serializer = ReflectSerializer::new(&value, &registry);
         let output = ron::ser::to_string_pretty(&serializer, config.clone()).unwrap();
         let expected = r#"{
-    "bevy_reflect::serde::ser::tests::enum_should_serialize::MyEnum": NewType(123),
+    "bevy_reflect::serde::ser::tests::MyEnum": NewType(123),
 }"#;
         assert_eq!(expected, output);
 
@@ -711,7 +703,7 @@ mod tests {
         let serializer = ReflectSerializer::new(&value, &registry);
         let output = ron::ser::to_string_pretty(&serializer, config.clone()).unwrap();
         let expected = r#"{
-    "bevy_reflect::serde::ser::tests::enum_should_serialize::MyEnum": Tuple(1.23, 3.21),
+    "bevy_reflect::serde::ser::tests::MyEnum": Tuple(1.23, 3.21),
 }"#;
         assert_eq!(expected, output);
 
@@ -722,7 +714,7 @@ mod tests {
         let serializer = ReflectSerializer::new(&value, &registry);
         let output = ron::ser::to_string_pretty(&serializer, config).unwrap();
         let expected = r#"{
-    "bevy_reflect::serde::ser::tests::enum_should_serialize::MyEnum": Struct(
+    "bevy_reflect::serde::ser::tests::MyEnum": Struct(
         value: "I <3 Enums",
     ),
 }"#;

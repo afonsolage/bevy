@@ -5,7 +5,10 @@ use std::hash::Hash;
 use bevy_utils::{Entry, HashMap};
 
 use crate::utility::NonGenericTypeInfoCell;
-use crate::{DynamicInfo, Reflect, ReflectMut, ReflectRef, TypeInfo, Typed};
+use crate::{
+    self as bevy_reflect, type_path, DynamicInfo, Reflect, ReflectMut, ReflectRef, TypeInfo,
+    TypePath, Typed,
+};
 
 /// An ordered mapping between [`Reflect`] values.
 ///
@@ -62,32 +65,36 @@ pub trait Map: Reflect {
 /// A container for compile-time map info.
 #[derive(Clone, Debug)]
 pub struct MapInfo {
-    type_name: &'static str,
+    type_path: &'static str,
     type_id: TypeId,
-    key_type_name: &'static str,
+    key_type_path: &'static str,
     key_type_id: TypeId,
-    value_type_name: &'static str,
+    value_type_path: &'static str,
     value_type_id: TypeId,
 }
 
 impl MapInfo {
     /// Create a new [`MapInfo`].
-    pub fn new<TMap: Map, TKey: Hash + Reflect, TValue: Reflect>() -> Self {
+    pub fn new<
+        TMap: Map + TypePath,
+        TKey: Hash + Reflect + TypePath,
+        TValue: Reflect + TypePath,
+    >() -> Self {
         Self {
-            type_name: std::any::type_name::<TMap>(),
+            type_path: type_path::<TMap>(),
             type_id: TypeId::of::<TMap>(),
-            key_type_name: std::any::type_name::<TKey>(),
+            key_type_path: type_path::<TKey>(),
             key_type_id: TypeId::of::<TKey>(),
-            value_type_name: std::any::type_name::<TValue>(),
+            value_type_path: type_path::<TValue>(),
             value_type_id: TypeId::of::<TValue>(),
         }
     }
 
-    /// The [type name] of the map.
+    /// The [type path] of the map.
     ///
-    /// [type name]: std::any::type_name
-    pub fn type_name(&self) -> &'static str {
-        self.type_name
+    /// [type path]: TypePath
+    pub fn type_path(&self) -> &'static str {
+        self.type_path
     }
 
     /// The [`TypeId`] of the map.
@@ -100,11 +107,11 @@ impl MapInfo {
         TypeId::of::<T>() == self.type_id
     }
 
-    /// The [type name] of the key.
+    /// The [type path] of the key.
     ///
-    /// [type name]: std::any::type_name
-    pub fn key_type_name(&self) -> &'static str {
-        self.key_type_name
+    /// [type path]: TypePath
+    pub fn key_type_path(&self) -> &'static str {
+        self.key_type_path
     }
 
     /// The [`TypeId`] of the key.
@@ -117,11 +124,11 @@ impl MapInfo {
         TypeId::of::<T>() == self.key_type_id
     }
 
-    /// The [type name] of the value.
+    /// The [type path] of the value.
     ///
-    /// [type name]: std::any::type_name
-    pub fn value_type_name(&self) -> &'static str {
-        self.value_type_name
+    /// [type path]: TypePath
+    pub fn value_type_path(&self) -> &'static str {
+        self.value_type_path
     }
 
     /// The [`TypeId`] of the value.
@@ -138,7 +145,7 @@ impl MapInfo {
 const HASH_ERROR: &str = "the given key does not support hashing";
 
 /// An ordered mapping between reflected values.
-#[derive(Default)]
+#[derive(Default, TypePath)]
 pub struct DynamicMap {
     name: String,
     values: Vec<(Box<dyn Reflect>, Box<dyn Reflect>)>,
@@ -146,18 +153,18 @@ pub struct DynamicMap {
 }
 
 impl DynamicMap {
-    /// Returns the type name of the map.
+    /// Returns the type path of the map.
     ///
     /// The value returned by this method is the same value returned by
-    /// [`Reflect::type_name`].
+    /// [`Reflect::type_path`].
     pub fn name(&self) -> &str {
         &self.name
     }
 
-    /// Sets the type name of the map.
+    /// Sets the type path of the map.
     ///
     /// The value set by this method is the same value returned by
-    /// [`Reflect::type_name`].
+    /// [`Reflect::type_path`].
     pub fn set_name(&mut self, name: String) {
         self.name = name;
     }
@@ -236,7 +243,8 @@ impl Map for DynamicMap {
 }
 
 impl Reflect for DynamicMap {
-    fn type_name(&self) -> &str {
+    #[inline]
+    fn type_path(&self) -> &str {
         &self.name
     }
 

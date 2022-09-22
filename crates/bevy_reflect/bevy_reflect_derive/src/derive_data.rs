@@ -4,10 +4,15 @@ use crate::utility::members_to_serialization_denylist;
 use bit_set::BitSet;
 use quote::quote;
 
-use crate::{utility, REFLECT_ATTRIBUTE_NAME, REFLECT_VALUE_ATTRIBUTE_NAME};
+use crate::{
+    utility, REFLECT_ATTRIBUTE_NAME, REFLECT_VALUE_ATTRIBUTE_NAME, TYPE_PATH_ATTRIBUTE_NAME,
+};
 use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
-use syn::{Data, DeriveInput, Field, Fields, Generics, Ident, Meta, Path, Token, Variant};
+use syn::{
+    Data, DeriveInput, Field, Fields, Generics, Ident, Lit, Meta, MetaList, NestedMeta, Path,
+    Token, Variant,
+};
 
 pub(crate) enum ReflectDerive<'a> {
     Struct(ReflectStruct<'a>),
@@ -37,6 +42,8 @@ pub(crate) struct ReflectMeta<'a> {
     type_name: &'a Ident,
     /// The generics defined on this type.
     generics: &'a Generics,
+    /// User defined options for the impl of `TypePath`.
+    type_path_options: TypePathOptions,
     /// A cached instance of the path to the `bevy_reflect` crate.
     bevy_reflect_path: Path,
 }
@@ -114,6 +121,8 @@ impl<'a> ReflectDerive<'a> {
         // Should indicate whether `#[reflect_value]` was used
         let mut force_reflect_value = false;
 
+        let mut type_path_options = None;
+
         for attribute in input.attrs.iter().filter_map(|attr| attr.parse_meta().ok()) {
             match attribute {
                 Meta::List(meta_list) if meta_list.path.is_ident(REFLECT_ATTRIBUTE_NAME) => {
@@ -126,6 +135,9 @@ impl<'a> ReflectDerive<'a> {
                 Meta::Path(path) if path.is_ident(REFLECT_VALUE_ATTRIBUTE_NAME) => {
                     force_reflect_value = true;
                 }
+                Meta::List(meta_list) if meta_list.path.is_ident(TYPE_PATH_ATTRIBUTE_NAME) => {
+                    type_path_options = Some(TypePathOptions::parse_meta_list(meta_list)?);
+                }
                 _ => continue,
             }
         }
@@ -134,13 +146,19 @@ impl<'a> ReflectDerive<'a> {
                 &input.ident,
                 &input.generics,
                 traits,
+                type_path_options.unwrap_or_default(),
             )));
         }
 
         return match &input.data {
             Data::Struct(data) => {
                 let fields = Self::collect_struct_fields(&data.fields)?;
-                let meta = ReflectMeta::new(&input.ident, &input.generics, traits);
+                let meta = ReflectMeta::new(
+                    &input.ident,
+                    &input.generics,
+                    traits,
+                    type_path_options.unwrap_or_default(),
+                );
                 let reflect_struct = ReflectStruct {
                     meta,
                     serialization_denylist: members_to_serialization_denylist(
@@ -157,7 +175,12 @@ impl<'a> ReflectDerive<'a> {
             }
             Data::Enum(data) => {
                 let variants = Self::collect_enum_variants(&data.variants)?;
-                let meta = ReflectMeta::new(&input.ident, &input.generics, traits);
+                let meta = ReflectMeta::new(
+                    &input.ident,
+                    &input.generics,
+                    traits,
+                    type_path_options.unwrap_or_default(),
+                );
 
                 let reflect_enum = ReflectEnum { meta, variants };
                 Ok(Self::Enum(reflect_enum))
@@ -220,11 +243,17 @@ impl<'a> ReflectDerive<'a> {
 }
 
 impl<'a> ReflectMeta<'a> {
-    pub fn new(type_name: &'a Ident, generics: &'a Generics, traits: ReflectTraits) -> Self {
+    pub fn new(
+        type_name: &'a Ident,
+        generics: &'a Generics,
+        traits: ReflectTraits,
+        type_path_options: TypePathOptions,
+    ) -> Self {
         Self {
             traits,
             type_name,
             generics,
+            type_path_options,
             bevy_reflect_path: utility::get_bevy_reflect_path(),
         }
     }
@@ -242,6 +271,11 @@ impl<'a> ReflectMeta<'a> {
     /// The generics associated with this struct.
     pub fn generics(&self) -> &'a Generics {
         self.generics
+    }
+
+    /// User defined options for the impl of `TypePath`.
+    pub fn type_path_options(&self) -> &TypePathOptions {
+        &self.type_path_options
     }
 
     /// The cached `bevy_reflect` path.
@@ -337,5 +371,80 @@ impl<'a> ReflectEnum<'a> {
     /// The complete set of variants in this enum.
     pub fn variants(&self) -> &[EnumVariant<'a>] {
         &self.variants
+    }
+}
+
+/// User defined options for the impl of `TypePath`.
+#[derive(Default)]
+pub(crate) struct TypePathOptions {
+    /// If set, the custom module path.
+    pub module_path: Option<String>,
+    /// If set, the custom type ident.
+    pub type_ident: Option<String>,
+}
+
+impl TypePathOptions {
+    fn parse_meta_list(meta_list: MetaList) -> Result<Self, syn::Error> {
+        fn expected_literal_string(lit: &Lit) -> Result<String, syn::Error> {
+            match lit {
+                Lit::Str(lit_str) => Ok(lit_str.value()),
+                other => Err(syn::Error::new(other.span(), "Expected a str literal")),
+            }
+        }
+
+        fn is_valid_module_path(_module_path: &str) -> bool {
+            // FIXME: what conditions here ?
+            true
+        }
+
+        fn is_valid_type_ident(_type_ident: &str) -> bool {
+            // FIXME: what conditions here ?
+            true
+        }
+
+        let mut module_path = None;
+        let mut type_ident = None;
+
+        for attribute in meta_list.nested {
+            match attribute {
+                NestedMeta::Meta(Meta::NameValue(name_value))
+                    if name_value.path.is_ident("path") =>
+                {
+                    let name = expected_literal_string(&name_value.lit)?;
+                    if is_valid_module_path(&name) {
+                        module_path = Some(name);
+                    } else {
+                        return Err(syn::Error::new(
+                            name_value.lit.span(),
+                            "Expected a valid module path",
+                        ));
+                    }
+                }
+                NestedMeta::Meta(Meta::NameValue(name_value))
+                    if name_value.path.is_ident("ident") =>
+                {
+                    let name = expected_literal_string(&name_value.lit)?;
+                    if is_valid_type_ident(&name) {
+                        type_ident = Some(name);
+                    } else {
+                        return Err(syn::Error::new(
+                            name_value.lit.span(),
+                            "Expected a valid type ident",
+                        ));
+                    }
+                }
+                other => {
+                    return Err(syn::Error::new(
+                        other.span(),
+                        format!("Unexpected entry for the `{TYPE_PATH_ATTRIBUTE_NAME}` attribute. Usage: #[{TYPE_PATH_ATTRIBUTE_NAME}(path = \"my_crate::my_module\", ident = \"MyType\")]"),
+                    ));
+                }
+            }
+        }
+
+        Ok(Self {
+            module_path,
+            type_ident,
+        })
     }
 }

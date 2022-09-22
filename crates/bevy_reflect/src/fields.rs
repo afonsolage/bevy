@@ -1,20 +1,20 @@
-use crate::Reflect;
+use crate::{type_path, Reflect, TypePath};
 use std::any::{Any, TypeId};
 
 /// The named field of a reflected struct.
 #[derive(Clone, Debug)]
 pub struct NamedField {
     name: &'static str,
-    type_name: &'static str,
+    type_path: &'static str,
     type_id: TypeId,
 }
 
 impl NamedField {
     /// Create a new [`NamedField`].
-    pub fn new<T: Reflect>(name: &'static str) -> Self {
+    pub fn new<T: Reflect + TypePath>(name: &'static str) -> Self {
         Self {
             name,
-            type_name: std::any::type_name::<T>(),
+            type_path: type_path::<T>(),
             type_id: TypeId::of::<T>(),
         }
     }
@@ -24,11 +24,11 @@ impl NamedField {
         self.name
     }
 
-    /// The [type name] of the field.
+    /// The [type path] of the field.
     ///
-    /// [type name]: std::any::type_name
-    pub fn type_name(&self) -> &'static str {
-        self.type_name
+    /// [type path]: TypePath
+    pub fn type_path(&self) -> &'static str {
+        self.type_path
     }
 
     /// The [`TypeId`] of the field.
@@ -46,15 +46,15 @@ impl NamedField {
 #[derive(Clone, Debug)]
 pub struct UnnamedField {
     index: usize,
-    type_name: &'static str,
+    type_path: &'static str,
     type_id: TypeId,
 }
 
 impl UnnamedField {
-    pub fn new<T: Reflect>(index: usize) -> Self {
+    pub fn new<T: Reflect + TypePath>(index: usize) -> Self {
         Self {
             index,
-            type_name: std::any::type_name::<T>(),
+            type_path: type_path::<T>(),
             type_id: TypeId::of::<T>(),
         }
     }
@@ -64,11 +64,11 @@ impl UnnamedField {
         self.index
     }
 
-    /// The [type name] of the field.
+    /// The [type path] of the field.
     ///
-    /// [type name]: std::any::type_name
-    pub fn type_name(&self) -> &'static str {
-        self.type_name
+    /// [type path]: TypePath
+    pub fn type_path(&self) -> &'static str {
+        self.type_path
     }
 
     /// The [`TypeId`] of the field.

@@ -1,4 +1,6 @@
-use crate::{serde::Serializable, Reflect, TypeInfo, Typed};
+use crate::{
+    self as bevy_reflect, serde::Serializable, type_path, Reflect, TypeInfo, TypePath, Typed,
+};
 use bevy_ptr::{Ptr, PtrMut};
 use bevy_utils::{HashMap, HashSet};
 use downcast_rs::{impl_downcast, Downcast};
@@ -99,7 +101,7 @@ impl TypeRegistry {
                 .insert(short_name, registration.type_id());
         }
         self.full_name_to_id
-            .insert(registration.type_name().to_string(), registration.type_id());
+            .insert(registration.type_path().to_string(), registration.type_id());
         self.registrations
             .insert(registration.type_id(), registration);
     }
@@ -120,12 +122,17 @@ impl TypeRegistry {
     /// type_registry.register_type_data::<Option<String>, ReflectSerialize>();
     /// type_registry.register_type_data::<Option<String>, ReflectDeserialize>();
     /// ```
-    pub fn register_type_data<T: Reflect + 'static, D: TypeData + FromType<T>>(&mut self) {
+    pub fn register_type_data<
+        T: Reflect + TypePath + 'static,
+        D: TypeData + TypePath + FromType<T>,
+    >(
+        &mut self,
+    ) {
         let data = self.get_mut(TypeId::of::<T>()).unwrap_or_else(|| {
             panic!(
                 "attempted to call `TypeRegistry::register_type_data` for type `{T}` with data `{D}` without registering `{T}` first",
-                T = std::any::type_name::<T>(),
-                D = std::any::type_name::<D>(),
+                T = type_path::<T>(),
+                D = type_path::<D>(),
             )
         });
         data.insert(D::from_type());
@@ -155,9 +162,9 @@ impl TypeRegistry {
     /// given name.
     ///
     /// If no type with the given name has been registered, returns `None`.
-    pub fn get_with_name(&self, type_name: &str) -> Option<&TypeRegistration> {
+    pub fn get_with_name(&self, type_path: &str) -> Option<&TypeRegistration> {
         self.full_name_to_id
-            .get(type_name)
+            .get(type_path)
             .and_then(|id| self.get(*id))
     }
 
@@ -165,9 +172,9 @@ impl TypeRegistry {
     /// the given name.
     ///
     /// If no type with the given name has been registered, returns `None`.
-    pub fn get_with_name_mut(&mut self, type_name: &str) -> Option<&mut TypeRegistration> {
+    pub fn get_with_name_mut(&mut self, type_path: &str) -> Option<&mut TypeRegistration> {
         self.full_name_to_id
-            .get(type_name)
+            .get(type_path)
             .cloned()
             .and_then(move |id| self.get_mut(id))
     }
@@ -323,11 +330,11 @@ impl TypeRegistration {
     }
 
     /// Creates type registration information for `T`.
-    pub fn of<T: Reflect + Typed>() -> Self {
-        let type_name = std::any::type_name::<T>();
+    pub fn of<T: Reflect + Typed + TypePath>() -> Self {
+        let type_path = type_path::<T>();
         Self {
             data: HashMap::default(),
-            short_name: bevy_utils::get_short_name(type_name),
+            short_name: bevy_utils::get_short_name(type_path),
             type_info: T::type_info(),
         }
     }
@@ -339,11 +346,11 @@ impl TypeRegistration {
         &self.short_name
     }
 
-    /// Returns the [name] of the type.
+    /// Returns the [type path] of the type.
     ///
-    /// [name]: std::any::type_name
-    pub fn type_name(&self) -> &'static str {
-        self.type_info.type_name()
+    /// [type path]: crate::TypePath
+    pub fn type_path(&self) -> &'static str {
+        self.type_info.type_path()
     }
 }
 
@@ -390,17 +397,17 @@ pub trait FromType<T> {
 ///
 /// A `ReflectSerialize` for type `T` can be obtained via
 /// [`FromType::from_type`].
-#[derive(Clone)]
+#[derive(Clone, TypePath)]
 pub struct ReflectSerialize {
     get_serializable: for<'a> fn(value: &'a dyn Reflect) -> Serializable,
 }
 
-impl<T: Reflect + erased_serde::Serialize> FromType<T> for ReflectSerialize {
+impl<T: Reflect + TypePath + erased_serde::Serialize> FromType<T> for ReflectSerialize {
     fn from_type() -> Self {
         ReflectSerialize {
             get_serializable: |value| {
                 let value = value.downcast_ref::<T>().unwrap_or_else(|| {
-                    panic!("ReflectSerialize::get_serialize called with type `{}`, even though it was created for `{}`", value.type_name(), std::any::type_name::<T>())
+                    panic!("ReflectSerialize::get_serialize called with type `{}`, even though it was created for `{}`", value.type_path(), type_path::<T>())
                 });
                 Serializable::Borrowed(value)
             },
@@ -419,7 +426,7 @@ impl ReflectSerialize {
 ///
 /// A `ReflectDeserialize` for type `T` can be obtained via
 /// [`FromType::from_type`].
-#[derive(Clone)]
+#[derive(Clone, TypePath)]
 pub struct ReflectDeserialize {
     pub func: fn(
         deserializer: &mut dyn erased_serde::Deserializer,

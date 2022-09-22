@@ -1,4 +1,4 @@
-use crate::impls::impl_typed;
+use crate::impls::{impl_type_path, impl_typed};
 use crate::ReflectStruct;
 use proc_macro::TokenStream;
 use quote::quote;
@@ -49,6 +49,8 @@ pub(crate) fn impl_tuple_struct(reflect_struct: &ReflectStruct) -> TokenStream {
         bevy_reflect_path,
     );
 
+    let type_path_impl = impl_type_path(reflect_struct.meta());
+
     let (impl_generics, ty_generics, where_clause) =
         reflect_struct.meta().generics().split_for_impl();
 
@@ -56,6 +58,8 @@ pub(crate) fn impl_tuple_struct(reflect_struct: &ReflectStruct) -> TokenStream {
         #get_type_registration_impl
 
         #typed_impl
+
+        #type_path_impl
 
         impl #impl_generics #bevy_reflect_path::TupleStruct for #struct_name #ty_generics #where_clause {
             fn field(&self, index: usize) -> Option<&dyn #bevy_reflect_path::Reflect> {
@@ -82,7 +86,7 @@ pub(crate) fn impl_tuple_struct(reflect_struct: &ReflectStruct) -> TokenStream {
 
             fn clone_dynamic(&self) -> #bevy_reflect_path::DynamicTupleStruct {
                 let mut dynamic = #bevy_reflect_path::DynamicTupleStruct::default();
-                dynamic.set_name(self.type_name().to_string());
+                dynamic.set_name(self.type_path().to_string());
                 #(dynamic.insert_boxed(self.#field_idents.clone_value());)*
                 dynamic
             }
@@ -90,8 +94,8 @@ pub(crate) fn impl_tuple_struct(reflect_struct: &ReflectStruct) -> TokenStream {
 
         impl #impl_generics #bevy_reflect_path::Reflect for #struct_name #ty_generics #where_clause {
             #[inline]
-            fn type_name(&self) -> &str {
-                std::any::type_name::<Self>()
+            fn type_path(&self) -> &str {
+                <Self as #bevy_reflect_path::TypePath>::type_path()
             }
 
             #[inline]

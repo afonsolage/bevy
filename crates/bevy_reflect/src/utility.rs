@@ -6,6 +6,67 @@ use once_cell::race::OnceBox;
 use parking_lot::RwLock;
 use std::any::{Any, TypeId};
 
+/// A container over non-generic types, allowing instances to be stored statically.
+///
+/// This is specifically meant for use with _non_-generic types. If your type _is_ generic,
+/// then use [`GenericDataCell`] instead. Otherwise, it will not take into account all
+/// monomorphizations of your type.
+pub struct NonGenericDataCell<Data>(OnceBox<Data>);
+
+impl<Data> NonGenericDataCell<Data> {
+    /// Initialize a [`NonGenericDataCell`] for non-generic types.
+    pub const fn new() -> Self {
+        Self(OnceBox::new())
+    }
+
+    /// Returns a reference to the `Data` stored in the cell.
+    ///
+    /// If there is no `Data` found, a new one will be generated from the given function.
+    pub fn get_or_set<F>(&self, f: F) -> &Data
+    where
+        F: FnOnce() -> Data,
+    {
+        self.0.get_or_init(|| Box::new(f()))
+    }
+}
+
+/// A container over generic types, allowing instances to be stored statically.
+///
+/// This is specifically meant for use with generic types. If your type isn't generic,
+/// then use [`NonGenericDataCell`] instead as it should be much more performant.
+pub struct GenericDataCell<Data: 'static>(OnceBox<RwLock<HashMap<TypeId, &'static Data>>>);
+
+impl<Data> GenericDataCell<Data> {
+    /// Initialize a [`GenericDataCell`] for generic types.
+    pub const fn new() -> Self {
+        Self(OnceBox::new())
+    }
+
+    /// Returns a reference to the `Data` stored in the cell.
+    ///
+    /// This method will then return the correct `Data` reference for the given type `T`.
+    /// If there is no `Data` found, a new one will be generated from the given function.
+    pub fn get_or_insert<T, F>(&self, f: F) -> &Data
+    where
+        T: Any + ?Sized,
+        F: FnOnce() -> Data,
+    {
+        let type_id = TypeId::of::<T>();
+        let mapping = self.0.get_or_init(|| Box::new(RwLock::default()));
+        if let Some(info) = mapping.read().get(&type_id) {
+            return info;
+        }
+
+        // We leak here in order to obtain a `&'static` reference.
+        // Otherwise, we won't be able to return a reference due to the `RwLock`.
+        // This should be okay, though, since we expect it to remain statically
+        // available over the course of the application.
+        let value = Box::leak(Box::new(f()));
+
+        mapping.write().entry(type_id).or_insert(value)
+    }
+}
+
 /// A container for [`TypeInfo`] over non-generic types, allowing instances to be stored statically.
 ///
 /// This is specifically meant for use with _non_-generic types. If your type _is_ generic,
@@ -16,7 +77,7 @@ use std::any::{Any, TypeId};
 ///
 /// ```
 /// # use std::any::Any;
-/// # use bevy_reflect::{NamedField, Reflect, ReflectMut, ReflectRef, StructInfo, Typed, TypeInfo};
+/// # use bevy_reflect::{NamedField, Reflect, ReflectMut, ReflectRef, StructInfo, Typed, TypeInfo, TypePath};
 /// use bevy_reflect::utility::NonGenericTypeInfoCell;
 ///
 /// struct Foo {
@@ -33,9 +94,16 @@ use std::any::{Any, TypeId};
 ///     })
 ///   }
 /// }
+/// # impl TypePath for Foo {
+/// #   fn type_path() -> &'static str { todo!() }
+/// #   fn short_type_name_base() -> &'static str { todo!() }
+/// #   fn short_type_name() -> &'static str { todo!() }
+/// #   fn module_path() -> &'static str { todo!() }
+/// #   fn crate_name() -> &'static str { todo!() }
+/// # }
 /// #
 /// # impl Reflect for Foo {
-/// #   fn type_name(&self) -> &str { todo!() }
+/// #   fn type_path(&self) -> &str { todo!() }
 /// #   fn get_type_info(&self) -> &'static TypeInfo { todo!() }
 /// #   fn into_any(self: Box<Self>) -> Box<dyn Any> { todo!() }
 /// #   fn as_any(&self) -> &dyn Any { todo!() }
@@ -49,26 +117,7 @@ use std::any::{Any, TypeId};
 /// #   fn clone_value(&self) -> Box<dyn Reflect> { todo!() }
 /// # }
 /// ```
-pub struct NonGenericTypeInfoCell(OnceBox<TypeInfo>);
-
-impl NonGenericTypeInfoCell {
-    /// Initialize a [`NonGenericTypeInfoCell`] for non-generic types.
-    pub const fn new() -> Self {
-        Self(OnceBox::new())
-    }
-
-    /// Returns a reference to the [`TypeInfo`] stored in the cell.
-    ///
-    /// If there is no [`TypeInfo`] found, a new one will be generated from the given function.
-    ///
-    /// [`TypeInfos`]: TypeInfo
-    pub fn get_or_set<F>(&self, f: F) -> &TypeInfo
-    where
-        F: FnOnce() -> TypeInfo,
-    {
-        self.0.get_or_init(|| Box::new(f()))
-    }
-}
+pub type NonGenericTypeInfoCell = NonGenericDataCell<TypeInfo>;
 
 /// A container for [`TypeInfo`] over generic types, allowing instances to be stored statically.
 ///
@@ -79,12 +128,12 @@ impl NonGenericTypeInfoCell {
 ///
 /// ```
 /// # use std::any::Any;
-/// # use bevy_reflect::{Reflect, ReflectMut, ReflectRef, TupleStructInfo, Typed, TypeInfo, UnnamedField};
+/// # use bevy_reflect::{Reflect, ReflectMut, ReflectRef, TupleStructInfo, Typed, TypeInfo, UnnamedField, TypePath};
 /// use bevy_reflect::utility::GenericTypeInfoCell;
 ///
 /// struct Foo<T: Reflect>(T);
 ///
-/// impl<T: Reflect> Typed for Foo<T> {
+/// impl<T: Reflect + TypePath> Typed for Foo<T> {
 ///   fn type_info() -> &'static TypeInfo {
 ///     static CELL: GenericTypeInfoCell = GenericTypeInfoCell::new();
 ///     CELL.get_or_insert::<Self, _>(|| {
@@ -94,9 +143,17 @@ impl NonGenericTypeInfoCell {
 ///     })
 ///   }
 /// }
+///
+/// # impl<T: Reflect> TypePath for Foo<T> {
+/// #   fn type_path() -> &'static str { todo!() }
+/// #   fn short_type_name_base() -> &'static str { todo!() }
+/// #   fn short_type_name() -> &'static str { todo!() }
+/// #   fn module_path() -> &'static str { todo!() }
+/// #   fn crate_name() -> &'static str { todo!() }
+/// # }
 /// #
 /// # impl<T: Reflect> Reflect for Foo<T> {
-/// #   fn type_name(&self) -> &str { todo!() }
+/// #   fn type_path(&self) -> &str { todo!() }
 /// #   fn get_type_info(&self) -> &'static TypeInfo { todo!() }
 /// #   fn into_any(self: Box<Self>) -> Box<dyn Any> { todo!() }
 /// #   fn as_any(&self) -> &dyn Any { todo!() }
@@ -110,35 +167,59 @@ impl NonGenericTypeInfoCell {
 /// #   fn clone_value(&self) -> Box<dyn Reflect> { todo!() }
 /// # }
 /// ```
-pub struct GenericTypeInfoCell(OnceBox<RwLock<HashMap<TypeId, &'static TypeInfo>>>);
+pub type GenericTypeInfoCell = GenericDataCell<TypeInfo>;
 
-impl GenericTypeInfoCell {
-    /// Initialize a [`GenericTypeInfoCell`] for generic types.
-    pub const fn new() -> Self {
-        Self(OnceBox::new())
-    }
+/// A container for [`String`] over generic types, allowing instances to be stored statically.
+///
+/// Used when implementing [`TypePath`][crate::TypePath] for generic types to store the type path.
+///
+/// ## Example
+///
+/// ```
+/// use bevy_reflect::{TypePath, utility::GenericTypePathCell};
+///
+/// struct MyType<T>(T);
+///
+/// impl<T: TypePath> TypePath for MyType<T> {
+///     fn type_path() -> &'static str {
+///         static CELL: GenericTypePathCell = GenericTypePathCell::new();
+///         CELL.get_or_insert::<Self, _>(|| {
+///             format!(concat!(module_path!(), "::MyType<{}>"), T::type_path())
+///         })
+///     }
+///
+///     fn short_type_name_base() -> &'static str {
+///         const IDENT_POS: usize = module_path!().len() + 2;
+///         const GENERIC_POS: usize = IDENT_POS + "MyType".len();
+///         &<Self as TypePath>::type_path()[IDENT_POS..GENERIC_POS]
+///     }
+///
+///     fn short_type_name() -> &'static str {
+///         const IDENT_POS: usize = module_path!().len() + 2;
+///         &<Self as TypePath>::type_path()[IDENT_POS..]
+///     }
+///
+///     fn module_path() -> &'static str {
+///         &<Self as TypePath>::type_path()[..module_path!().len()]
+///     }
+///
+///     fn crate_name() -> &'static str {
+///         "my_crate"
+///     }
+/// }
+/// ```
+pub type GenericTypePathCell = GenericDataCell<String>;
 
-    /// Returns a reference to the [`TypeInfo`] stored in the cell.
-    ///
-    /// This method will then return the correct [`TypeInfo`] reference for the given type `T`.
-    /// If there is no [`TypeInfo`] found, a new one will be generated from the given function.
-    pub fn get_or_insert<T, F>(&self, f: F) -> &TypeInfo
-    where
-        T: Any + ?Sized,
-        F: FnOnce() -> TypeInfo,
-    {
-        let type_id = TypeId::of::<T>();
-        let mapping = self.0.get_or_init(|| Box::new(RwLock::default()));
-        if let Some(info) = mapping.read().get(&type_id) {
-            return info;
+pub const fn crate_name_len(type_path: &str) -> usize {
+    const SEPARATOR: u8 = b':';
+    let bytes = type_path.as_bytes();
+    let end = bytes.len().saturating_sub(1);
+    let mut i = 0;
+    while i < end {
+        if bytes[i] == SEPARATOR && bytes[i + 1] == SEPARATOR {
+            return i;
         }
-
-        mapping.write().entry(type_id).or_insert_with(|| {
-            // We leak here in order to obtain a `&'static` reference.
-            // Otherwise, we won't be able to return a reference due to the `RwLock`.
-            // This should be okay, though, since we expect it to remain statically
-            // available over the course of the application.
-            Box::leak(Box::new(f()))
-        })
+        i += 1;
     }
+    bytes.len()
 }

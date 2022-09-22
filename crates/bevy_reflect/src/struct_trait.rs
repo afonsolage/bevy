@@ -1,5 +1,8 @@
 use crate::utility::NonGenericTypeInfoCell;
-use crate::{DynamicInfo, NamedField, Reflect, ReflectMut, ReflectRef, TypeInfo, Typed};
+use crate::{
+    self as bevy_reflect, type_path, DynamicInfo, NamedField, Reflect, ReflectMut, ReflectRef,
+    TypeInfo, TypePath, Typed,
+};
 use bevy_utils::{Entry, HashMap};
 use std::fmt::{Debug, Formatter};
 use std::{
@@ -70,7 +73,7 @@ pub trait Struct: Reflect {
 #[derive(Clone, Debug)]
 pub struct StructInfo {
     name: &'static str,
-    type_name: &'static str,
+    type_path: &'static str,
     type_id: TypeId,
     fields: Box<[NamedField]>,
     field_indices: HashMap<&'static str, usize>,
@@ -84,7 +87,7 @@ impl StructInfo {
     /// * `name`: The name of this struct (_without_ generics or lifetimes)
     /// * `fields`: The fields of this struct in the order they are defined
     ///
-    pub fn new<T: Reflect>(name: &'static str, fields: &[NamedField]) -> Self {
+    pub fn new<T: Reflect + TypePath>(name: &'static str, fields: &[NamedField]) -> Self {
         let field_indices = fields
             .iter()
             .enumerate()
@@ -93,7 +96,7 @@ impl StructInfo {
 
         Self {
             name,
-            type_name: std::any::type_name::<T>(),
+            type_path: type_path::<T>(),
             type_id: TypeId::of::<T>(),
             fields: fields.to_vec().into_boxed_slice(),
             field_indices,
@@ -138,9 +141,9 @@ impl StructInfo {
 
     /// The [type name] of the struct.
     ///
-    /// [type name]: std::any::type_name
-    pub fn type_name(&self) -> &'static str {
-        self.type_name
+    /// [type path]: TypePath
+    pub fn type_path(&self) -> &'static str {
+        self.type_path
     }
 
     /// The [`TypeId`] of the struct.
@@ -239,7 +242,7 @@ impl GetField for dyn Struct {
 }
 
 /// A struct type which allows fields to be added at runtime.
-#[derive(Default)]
+#[derive(Default, TypePath)]
 pub struct DynamicStruct {
     name: String,
     fields: Vec<Box<dyn Reflect>>,
@@ -248,12 +251,12 @@ pub struct DynamicStruct {
 }
 
 impl DynamicStruct {
-    /// Returns the type name of the struct.
+    /// Returns the type path of the struct.
     pub fn name(&self) -> &str {
         &self.name
     }
 
-    /// Sets the type name of the struct.
+    /// Sets the type path of the struct.
     pub fn set_name(&mut self, name: String) {
         self.name = name;
     }
@@ -353,7 +356,7 @@ impl Struct for DynamicStruct {
 
 impl Reflect for DynamicStruct {
     #[inline]
-    fn type_name(&self) -> &str {
+    fn type_path(&self) -> &str {
         &self.name
     }
 
@@ -501,7 +504,7 @@ pub fn struct_partial_eq<S: Struct>(a: &S, b: &dyn Reflect) -> Option<bool> {
 /// ```
 #[inline]
 pub fn struct_debug(dyn_struct: &dyn Struct, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    let mut debug = f.debug_struct(dyn_struct.type_name());
+    let mut debug = f.debug_struct(dyn_struct.type_path());
     for field_index in 0..dyn_struct.field_len() {
         let field = dyn_struct.field_at(field_index).unwrap();
         debug.field(
