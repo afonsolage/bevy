@@ -7,12 +7,13 @@
 use crate::REFLECT_ATTRIBUTE_NAME;
 use quote::ToTokens;
 use syn::spanned::Spanned;
-use syn::{Attribute, Lit, Meta, NestedMeta};
+use syn::{Attribute, Lit, Meta, NestedMeta, Type};
 
 pub(crate) static IGNORE_SERIALIZATION_ATTR: &str = "skip_serializing";
 pub(crate) static IGNORE_ALL_ATTR: &str = "ignore";
 
 pub(crate) static DEFAULT_ATTR: &str = "default";
+pub(crate) static REMOTE_ATTR: &str = "remote";
 
 /// Stores data about if the field should be visible via the Reflect and serialization interfaces
 ///
@@ -52,6 +53,8 @@ pub(crate) struct ReflectFieldAttr {
     pub ignore: ReflectIgnoreBehavior,
     /// Sets the default behavior of this field.
     pub default: DefaultBehavior,
+    /// For defining the remote wrapper type that should be used in place of the field for reflection logic.
+    pub remote: Option<Type>,
 }
 
 /// Controls how the default value is determined for a field.
@@ -129,6 +132,22 @@ fn parse_meta(args: &mut ReflectFieldAttr, meta: &Meta) -> Result<(), syn::Error
                         format!("expected a string literal containing the name of a function, but found: {}", err.to_token_stream()),
                     ))
                 }
+            }
+        }
+        Meta::NameValue(pair) if pair.path.is_ident(REMOTE_ATTR) => {
+            let lit = &pair.lit;
+            match lit {
+                Lit::Str(lit_str) => {
+                    args.remote = Some(lit_str.parse()?);
+                    Ok(())
+                }
+                err => Err(syn::Error::new(
+                    err.span(),
+                    format!(
+                        "expected a string literal containing the remote type, but found: {}",
+                        err.to_token_stream()
+                    ),
+                )),
             }
         }
         Meta::NameValue(pair) => {

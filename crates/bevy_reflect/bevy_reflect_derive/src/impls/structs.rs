@@ -1,8 +1,9 @@
+use crate::impls::any::impl_reflect_any_methods;
 use crate::impls::{impl_type_path, impl_typed};
+use crate::struct_utility::FieldAccessors;
 use crate::ReflectStruct;
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{Index, Member};
 
 /// Implements `Struct`, `GetTypeRegistration`, and `Reflect` for the given derive data.
 pub(crate) fn impl_struct(reflect_struct: &ReflectStruct) -> TokenStream {
@@ -20,20 +21,14 @@ pub(crate) fn impl_struct(reflect_struct: &ReflectStruct) -> TokenStream {
                 .unwrap_or_else(|| field.index.to_string())
         })
         .collect::<Vec<String>>();
-    let field_idents = reflect_struct
-        .active_fields()
-        .map(|field| {
-            field
-                .data
-                .ident
-                .as_ref()
-                .map(|ident| Member::Named(ident.clone()))
-                .unwrap_or_else(|| Member::Unnamed(Index::from(field.index)))
-        })
-        .collect::<Vec<_>>();
+    let FieldAccessors {
+        fields,
+        fields_ref,
+        fields_mut,
+        field_indices,
+        field_count,
+    } = FieldAccessors::new(reflect_struct);
     let field_types = reflect_struct.active_types();
-    let field_count = field_idents.len();
-    let field_indices = (0..field_count).collect::<Vec<usize>>();
 
     let hash_fn = reflect_struct
         .meta()
@@ -67,6 +62,8 @@ pub(crate) fn impl_struct(reflect_struct: &ReflectStruct) -> TokenStream {
 
     let type_path_impl = impl_type_path(reflect_struct.meta());
 
+    let any_impls = impl_reflect_any_methods(reflect_struct.is_remote_wrapper());
+
     let get_type_registration_impl = reflect_struct.get_type_registration();
 
     let (impl_generics, ty_generics, where_clause) =
@@ -82,28 +79,28 @@ pub(crate) fn impl_struct(reflect_struct: &ReflectStruct) -> TokenStream {
         impl #impl_generics #bevy_reflect_path::Struct for #struct_name #ty_generics #where_clause {
             fn field(&self, name: &str) -> Option<&dyn #bevy_reflect_path::Reflect> {
                 match name {
-                    #(#field_names => Some(&self.#field_idents),)*
+                    #(#field_names => Some(#fields_ref),)*
                     _ => None,
                 }
             }
 
             fn field_mut(&mut self, name: &str) -> Option<&mut dyn #bevy_reflect_path::Reflect> {
                 match name {
-                    #(#field_names => Some(&mut self.#field_idents),)*
+                    #(#field_names => Some(#fields_mut),)*
                     _ => None,
                 }
             }
 
             fn field_at(&self, index: usize) -> Option<&dyn #bevy_reflect_path::Reflect> {
                 match index {
-                    #(#field_indices => Some(&self.#field_idents),)*
+                    #(#field_indices => Some(#fields_ref),)*
                     _ => None,
                 }
             }
 
             fn field_at_mut(&mut self, index: usize) -> Option<&mut dyn #bevy_reflect_path::Reflect> {
                 match index {
-                    #(#field_indices => Some(&mut self.#field_idents),)*
+                    #(#field_indices => Some(#fields_mut),)*
                     _ => None,
                 }
             }
@@ -126,7 +123,7 @@ pub(crate) fn impl_struct(reflect_struct: &ReflectStruct) -> TokenStream {
             fn clone_dynamic(&self) -> #bevy_reflect_path::DynamicStruct {
                 let mut dynamic = #bevy_reflect_path::DynamicStruct::default();
                 dynamic.set_name(self.type_path().to_string());
-                #(dynamic.insert_boxed(#field_names, self.#field_idents.clone_value());)*
+                #(dynamic.insert_boxed(#field_names, #fields.clone_value());)*
                 dynamic
             }
         }
@@ -142,20 +139,7 @@ pub(crate) fn impl_struct(reflect_struct: &ReflectStruct) -> TokenStream {
                 <Self as #bevy_reflect_path::Typed>::type_info()
             }
 
-            #[inline]
-            fn into_any(self: Box<Self>) -> Box<dyn std::any::Any> {
-                self
-            }
-
-            #[inline]
-            fn as_any(&self) -> &dyn std::any::Any {
-                self
-            }
-
-            #[inline]
-            fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
-                self
-            }
+            #any_impls
 
             #[inline]
             fn as_reflect(&self) -> &dyn #bevy_reflect_path::Reflect {

@@ -1,3 +1,4 @@
+use crate::derive_data::StructField;
 use crate::{
     derive_data::{EnumVariantFields, ReflectEnum},
     utility::ident_or_index,
@@ -29,7 +30,7 @@ pub(crate) fn get_variant_constructors(
         let name = ident.to_string();
         let variant_constructor = reflect_enum.get_unit(ident);
 
-        let fields = match &variant.fields {
+        let fields: &[StructField] = match &variant.fields {
             EnumVariantFields::Unit => &[],
             EnumVariantFields::Named(fields) | EnumVariantFields::Unnamed(fields) => {
                 fields.as_slice()
@@ -64,9 +65,22 @@ pub(crate) fn get_variant_constructors(
                 reflect_index += 1;
                 let missing_field_err_message = format!("the field {error_repr} was not declared");
                 let accessor = quote!(#field_accessor .expect(#missing_field_err_message));
-                quote! {
-                    #bevy_reflect_path::FromReflect::from_reflect(#ref_value #accessor)
-                    #unwrapper
+
+                if let Some(field_ty) = &field.attrs.remote {
+                    quote! {
+                        unsafe {
+                            // SAFE: The wrapper type should be repr(transparent) over the remote type
+                            ::std::mem::transmute(
+                                <#field_ty as #bevy_reflect_path::FromReflect>::from_reflect(#ref_value #accessor)
+                                #unwrapper
+                            )
+                        }
+                    }
+                } else {
+                    quote! {
+                        #bevy_reflect_path::FromReflect::from_reflect(#ref_value #accessor)
+                        #unwrapper
+                    }
                 }
             };
             quote! { #field_ident : #field_value }
